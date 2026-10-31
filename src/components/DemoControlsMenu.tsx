@@ -417,7 +417,7 @@ export function DemoControlsMenu({
               className="mt-2.5 w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white hover:bg-[#f8fafd] text-xs font-medium text-[#1f1f1f] shadow-2xs transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5 text-[#5f6368]" />
-              <span>Sign out of mailbox</span>
+              <span>Sign out</span>
             </button>
           </div>
         )}
