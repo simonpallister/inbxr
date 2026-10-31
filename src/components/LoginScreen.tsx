@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Mail, ArrowRight, Globe, User } from "lucide-react";
 import type { MailboxSummary } from "@/lib/db";
+import { getMailboxPath } from "@/lib/mailbox-url";
 
 interface LoginScreenProps {
   domain: string;
@@ -48,7 +49,7 @@ export function LoginScreen({
             Sign in
           </h1>
           <p className="text-[16px] text-[#444746] leading-relaxed">
-            to continue to <span className="font-medium text-[#1f1f1f]">Mail</span>
+            to continue to <span className="font-medium text-[#1f1f1f]">inbxr</span>
           </p>
           <div className="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#f8fafd] border border-[#e1e5ea] text-xs text-[#444746]">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -116,10 +117,20 @@ export function LoginScreen({
             </div>
             <div className="flex flex-wrap gap-2">
               {recentMailboxes.slice(0, 6).map((m) => (
-                <button
+                <a
                   key={m.username}
-                  type="button"
-                  onClick={() => onLogin(m.username)}
+                  href={getMailboxPath(m.username)}
+                  onClick={(e) => {
+                    if (
+                      !e.metaKey &&
+                      !e.ctrlKey &&
+                      !e.shiftKey &&
+                      e.button === 0
+                    ) {
+                      e.preventDefault();
+                      onLogin(m.username);
+                    }
+                  }}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#c4c7c5] hover:bg-[#f0f4f9] hover:border-[#0b57d0] text-xs text-[#1f1f1f] transition-colors cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5 text-[#444746]" />
@@ -129,23 +140,43 @@ export function LoginScreen({
                       {m.unreadCount}
                     </span>
                   )}
-                </button>
+                </a>
               ))}
 
               {recentMailboxes.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => onLogin("jane.smith123")}
+                <a
+                  href={getMailboxPath("jane.smith123")}
+                  onClick={(e) => {
+                    if (
+                      !e.metaKey &&
+                      !e.ctrlKey &&
+                      !e.shiftKey &&
+                      e.button === 0
+                    ) {
+                      e.preventDefault();
+                      onLogin("jane.smith123");
+                    }
+                  }}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#c4c7c5] hover:bg-[#f0f4f9] text-xs text-[#1f1f1f] transition-colors cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5 text-[#444746]" />
                   <span>jane.smith123</span>
-                </button>
+                </a>
               )}
 
-              <button
-                type="button"
-                onClick={() => onLogin("__all__")}
+              <a
+                href={getMailboxPath("__all__")}
+                onClick={(e) => {
+                  if (
+                    !e.metaKey &&
+                    !e.ctrlKey &&
+                    !e.shiftKey &&
+                    e.button === 0
+                  ) {
+                    e.preventDefault();
+                    onLogin("__all__");
+                  }
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#d3e3fd] bg-[#f8fafd] hover:bg-[#e8f0fe] text-xs text-[#0b57d0] font-medium transition-colors cursor-pointer"
               >
                 <Globe className="w-3.5 h-3.5" />
@@ -155,7 +186,7 @@ export function LoginScreen({
                     {allUnreadCount}
                   </span>
                 )}
-              </button>
+              </a>
             </div>
           </div>
         </div>

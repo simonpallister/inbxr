@@ -18,6 +18,7 @@ import type {
   EmailSummary,
   MailboxSummary,
 } from "@/lib/db";
+import { formatMailboxTitle } from "@/lib/mailbox-url";
 import { EmailListPane } from "./EmailListPane";
 import { EmailReaderPane } from "./EmailReaderPane";
 import { DemoControlsMenu } from "./DemoControlsMenu";
@@ -30,7 +31,6 @@ interface InboxShellProps {
   allTotalCount: number;
   onSwitchMailbox: (mailbox: string) => void;
   onLogout: () => void;
-  onDomainUpdated: (domain: string) => void;
   onRefreshMailboxes: () => void;
 }
 
@@ -42,7 +42,6 @@ export function InboxShell({
   allTotalCount,
   onSwitchMailbox,
   onLogout,
-  onDomainUpdated,
   onRefreshMailboxes,
 }: InboxShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -88,12 +87,11 @@ export function InboxShell({
         setUnreadCount(Number(data.unreadCount || 0));
         setStarredCount(Number(data.starredCount || 0));
         setTrashCount(Number(data.trashCount || 0));
-        if (data.domain) onDomainUpdated(data.domain);
       } finally {
         if (!silent) setIsLoadingList(false);
       }
     },
-    [currentMailbox, folder, search, onDomainUpdated]
+    [currentMailbox, folder, search]
   );
 
   useEffect(() => {
@@ -101,6 +99,10 @@ export function InboxShell({
     setSelectedEmail(null);
     setSelectedCheckedIds(new Set());
   }, [currentMailbox, folder]);
+
+  useEffect(() => {
+    document.title = formatMailboxTitle(currentMailbox, unreadCount);
+  }, [currentMailbox, unreadCount]);
 
   useEffect(() => {
     fetchEmailList();
@@ -314,19 +316,6 @@ export function InboxShell({
     showToast("Inbox cleared.");
   };
 
-  const handleUpdateDomain = async (newDomain: string) => {
-    const res = await fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ domain: newDomain }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      onDomainUpdated(data.domain);
-      showToast(`Domain updated to @${data.domain}`);
-    }
-  };
-
   const navItems: Array<{
     key: "inbox" | "starred" | "sent" | "drafts" | "trash";
     label: string;
@@ -382,7 +371,7 @@ export function InboxShell({
               <Mail className="w-4 h-4 text-white" />
             </div>
             <span className="text-[20px] font-normal text-[#444746] tracking-tight">
-              Mail
+              inbxr
             </span>
           </div>
         </div>
@@ -419,7 +408,6 @@ export function InboxShell({
           allTotalCount={allTotalCount}
           onSwitchMailbox={onSwitchMailbox}
           onLogout={onLogout}
-          onUpdateDomain={handleUpdateDomain}
           onSeedInbox={handleSeedInbox}
           onTriggerTestEmail={handleTriggerTestEmail}
           onClearMailbox={handleClearMailbox}

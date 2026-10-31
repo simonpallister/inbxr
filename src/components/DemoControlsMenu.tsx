@@ -13,6 +13,7 @@ import {
   Copy,
 } from "lucide-react";
 import type { MailboxSummary } from "@/lib/db";
+import { getMailboxPath } from "@/lib/mailbox-url";
 
 interface DemoControlsMenuProps {
   currentMailbox: string;
@@ -22,7 +23,6 @@ interface DemoControlsMenuProps {
   allTotalCount: number;
   onSwitchMailbox: (mailbox: string) => void;
   onLogout: () => void;
-  onUpdateDomain: (newDomain: string) => Promise<void>;
   onSeedInbox: () => Promise<void>;
   onTriggerTestEmail: () => Promise<void>;
   onClearMailbox: () => Promise<void>;
@@ -36,24 +36,18 @@ export function DemoControlsMenu({
   allTotalCount,
   onSwitchMailbox,
   onLogout,
-  onUpdateDomain,
   onSeedInbox,
   onTriggerTestEmail,
   onClearMailbox,
 }: DemoControlsMenuProps) {
   const [appsOpen, setAppsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [domainInput, setDomainInput] = useState(domain);
   const [newPersonaInput, setNewPersonaInput] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [copiedCurl, setCopiedCurl] = useState(false);
 
   const appsRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setDomainInput(domain);
-  }, [domain]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -77,17 +71,6 @@ export function DemoControlsMenu({
       : currentMailbox
           .slice(0, 2)
           .toUpperCase();
-
-  const handleDomainSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!domainInput.trim()) return;
-    setBusyAction("domain");
-    try {
-      await onUpdateDomain(domainInput.trim());
-    } finally {
-      setBusyAction(null);
-    }
-  };
 
   const handleQuickSwitch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,31 +195,7 @@ export function DemoControlsMenu({
                   </div>
                 </div>
               </button>
-            </div>
-
-            {/* Domain configuration */}
-            <div className="mt-3 bg-white rounded-2xl p-3.5 shadow-2xs space-y-2.5">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#5f6368]">
-                Configured Domain
-              </div>
-              <form onSubmit={handleDomainSave} className="flex gap-1.5">
-                <input
-                  type="text"
-                  value={domainInput}
-                  onChange={(e) => setDomainInput(e.target.value)}
-                  placeholder="inbxr.cloud"
-                  className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg border border-[#c4c7c5] focus:outline-none focus:border-[#0b57d0] font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={busyAction === "domain"}
-                  className="px-3 py-1.5 rounded-lg bg-[#0b57d0] hover:bg-[#0842a0] text-white text-xs font-medium cursor-pointer"
-                >
-                  Save
-                </button>
-              </form>
-
-              <div className="pt-1 border-t border-[#f1f3f4] flex items-center justify-between text-[11px] text-[#5f6368]">
+              <div className="pt-2 border-t border-[#f1f3f4] flex items-center justify-between text-[11px] text-[#5f6368]">
                 <span className="inline-flex items-center gap-1">
                   <Terminal className="w-3.5 h-3.5" />
                   <span>SMTP Port 25 + /api/inbound</span>
@@ -304,11 +263,19 @@ export function DemoControlsMenu({
 
             {/* Persona list */}
             <div className="bg-white rounded-2xl overflow-hidden shadow-2xs divide-y divide-[#f1f3f4]">
-              <button
-                type="button"
-                onClick={() => {
-                  onSwitchMailbox("__all__");
-                  setAccountOpen(false);
+              <a
+                href={getMailboxPath("__all__")}
+                onClick={(e) => {
+                  if (
+                    !e.metaKey &&
+                    !e.ctrlKey &&
+                    !e.shiftKey &&
+                    e.button === 0
+                  ) {
+                    e.preventDefault();
+                    onSwitchMailbox("__all__");
+                    setAccountOpen(false);
+                  }
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 text-xs hover:bg-[#f8fafd] transition-colors cursor-pointer ${
                   currentMailbox === "__all__" ? "bg-[#e8f0fe]/60" : ""
@@ -332,18 +299,26 @@ export function DemoControlsMenu({
                     {allUnreadCount}
                   </span>
                 )}
-              </button>
+              </a>
 
               <div className="max-h-44 overflow-y-auto divide-y divide-[#f1f3f4]">
                 {mailboxes.map((m) => {
                   const active = m.username === currentMailbox;
                   return (
-                    <button
+                    <a
                       key={m.username}
-                      type="button"
-                      onClick={() => {
-                        onSwitchMailbox(m.username);
-                        setAccountOpen(false);
+                      href={getMailboxPath(m.username)}
+                      onClick={(e) => {
+                        if (
+                          !e.metaKey &&
+                          !e.ctrlKey &&
+                          !e.shiftKey &&
+                          e.button === 0
+                        ) {
+                          e.preventDefault();
+                          onSwitchMailbox(m.username);
+                          setAccountOpen(false);
+                        }
                       }}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 text-xs hover:bg-[#f8fafd] transition-colors cursor-pointer ${
                         active ? "bg-[#e8f0fe]/50" : ""
@@ -372,7 +347,7 @@ export function DemoControlsMenu({
                           <Check className="w-3.5 h-3.5 text-[#0b57d0]" />
                         )}
                       </div>
-                    </button>
+                    </a>
                   );
                 })}
               </div>

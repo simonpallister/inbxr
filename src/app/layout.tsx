@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mail",
-  description: "Webmail client",
+  title: "inbxr",
+  description: "inbxr webmail client",
 };
 
 export default function RootLayout({

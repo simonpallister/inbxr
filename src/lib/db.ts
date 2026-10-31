@@ -77,11 +77,6 @@ export function getDb(): DatabaseSync {
   db.exec("PRAGMA foreign_keys = ON;");
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS mailboxes (
       username TEXT PRIMARY KEY,
       last_accessed_at TEXT NOT NULL,
@@ -134,21 +129,6 @@ export function getDb(): DatabaseSync {
       ON attachments(email_id);
   `);
 
-  const defaultDomain = (process.env.MAIL_DOMAIN || "inbxr.cloud")
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "");
-
-  const existingDomain = db
-    .prepare("SELECT value FROM settings WHERE key = 'domain'")
-    .get() as { value: string } | undefined;
-
-  if (!existingDomain) {
-    db.prepare("INSERT INTO settings (key, value) VALUES ('domain', ?)").run(
-      defaultDomain
-    );
-  }
-
   globalThis.__mailSqliteDb = db;
   return db;
 }
@@ -180,28 +160,14 @@ export function parseRecipientAddress(rawAddress: string): {
 }
 
 export function getDomain(): string {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT value FROM settings WHERE key = 'domain'")
-    .get() as { value: string } | undefined;
-  return row?.value || process.env.MAIL_DOMAIN || "inbxr.cloud";
-}
-
-export function setDomain(domain: string): string {
-  const cleaned = domain
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^@/, "")
-    .replace(/\/.*$/, "");
-  if (!cleaned) {
-    return getDomain();
-  }
-  const db = getDb();
-  db.prepare(
-    "INSERT INTO settings (key, value) VALUES ('domain', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-  ).run(cleaned);
-  return cleaned;
+  return (
+    (process.env.MAIL_DOMAIN || "inbxr.cloud")
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/^@/, "")
+      .replace(/\/.*$/, "") || "inbxr.cloud"
+  );
 }
 
 export function touchMailbox(username: string): string {
