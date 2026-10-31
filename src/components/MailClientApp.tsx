@@ -155,14 +155,7 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
   }
 
   if (!activeMailbox) {
-    return (
-      <LoginScreen
-        domain={domain}
-        recentMailboxes={mailboxes}
-        allUnreadCount={allUnreadCount}
-        onLogin={handleLoginOrSwitch}
-      />
-    );
+    return <LoginScreen domain={domain} onLogin={handleLoginOrSwitch} />;
   }
 
   return (
