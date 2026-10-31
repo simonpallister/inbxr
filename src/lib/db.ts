@@ -2,11 +2,26 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+export interface LinkRedirectHop {
+  url: string;
+  status: number;
+}
+
+export interface LinkUnrollResult {
+  finalUrl: string;
+  finalStatus: number | null;
+  hops: LinkRedirectHop[];
+  durationMs: number;
+  checkedAt: string;
+  error?: string | null;
+}
+
 export interface ExtractedLink {
   url: string;
   text: string;
   isTrackingPixel: boolean;
   utmParams: Record<string, string>;
+  unrolled?: LinkUnrollResult | null;
 }
 
 export interface AttachmentMeta {
@@ -722,6 +737,18 @@ export function bulkUpdateEmails(
       `UPDATE emails SET ${sets.join(", ")} WHERE id IN (${placeholders})`
     ).run(...params, ...ids);
   }
+}
+
+export function updateEmailExtractedLinks(
+  id: string,
+  extractedLinks: ExtractedLink[]
+): EmailDetail | null {
+  const db = getDb();
+  db.prepare("UPDATE emails SET extracted_links = ? WHERE id = ?").run(
+    JSON.stringify(extractedLinks),
+    id
+  );
+  return getEmailById(id);
 }
 
 export function deleteEmailById(id: string): void {

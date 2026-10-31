@@ -9,6 +9,12 @@ import {
   parseRecipientAddress,
 } from "./db";
 import { emitNewEmail } from "./events";
+import {
+  classifyEmailLink,
+  extractTrackingParamsFromUrl,
+} from "./link-utils";
+
+export { classifyEmailLink, extractTrackingParamsFromUrl };
 
 function decodeHtmlEntities(input: string): string {
   return input
@@ -100,22 +106,7 @@ export function extractLinksAndPixels(
     const innerText = decodeHtmlEntities(
       match[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
     );
-    const utmParams: Record<string, string> = {};
-    try {
-      const parsed = new URL(rawUrl, "https://example.com");
-      parsed.searchParams.forEach((val, key) => {
-        if (
-          key.toLowerCase().startsWith("utm_") ||
-          ["lid", "mc_cid", "mc_eid", "_hsenc", "_hsmi", " sfmc_id"].includes(
-            key.toLowerCase().trim()
-          )
-        ) {
-          utmParams[key] = val;
-        }
-      });
-    } catch {
-      // ignore invalid URLs
-    }
+    const utmParams = extractTrackingParamsFromUrl(rawUrl);
 
     results.push({
       url: rawUrl,
