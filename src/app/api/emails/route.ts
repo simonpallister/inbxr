@@ -66,6 +66,12 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "clear") {
+      if (mailbox === "__all__") {
+        return NextResponse.json(
+          { error: "Resetting all mailboxes is disabled" },
+          { status: 400 }
+        );
+      }
       clearMailboxEmails(mailbox);
       emitMailboxUpdated(mailbox);
       return NextResponse.json({ ok: true });

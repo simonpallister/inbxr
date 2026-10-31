@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import type { MailboxSummary } from "@/lib/db";
 import {
   parseMailboxSegment,
@@ -12,6 +12,44 @@ import { InboxShell } from "@/components/InboxShell";
 
 interface MailClientAppProps {
   initialMailbox?: string | null;
+}
+
+const RECENT_MAILBOXES_STORAGE_KEY = "inbxr_recent_mailboxes";
+const MAX_RECENT_MAILBOXES = 20;
+
+function loadLocalRecentMailboxes(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_MAILBOXES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => parseMailboxSegment(String(item)))
+      .filter((m): m is string => Boolean(m && m !== "__all__"));
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalRecentMailbox(mailbox: string): string[] {
+  const clean = parseMailboxSegment(mailbox);
+  const current = loadLocalRecentMailboxes();
+  if (!clean || clean === "__all__") return current;
+
+  const updated = [clean, ...current.filter((m) => m !== clean)].slice(
+    0,
+    MAX_RECENT_MAILBOXES
+  );
+  try {
+    window.localStorage.setItem(
+      RECENT_MAILBOXES_STORAGE_KEY,
+      JSON.stringify(updated)
+    );
+  } catch {
+    // ignore storage errors
+  }
+  return updated;
 }
 
 function resolveMailboxFromWindow(): string | null {
@@ -44,7 +82,8 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
   );
   const [hydrated, setHydrated] = useState(Boolean(initialMailbox));
   const [domain, setDomain] = useState("inbxr.cloud");
-  const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
+  const [serverMailboxes, setServerMailboxes] = useState<MailboxSummary[]>([]);
+  const [localRecentNames, setLocalRecentNames] = useState<string[]>([]);
   const [allUnreadCount, setAllUnreadCount] = useState(0);
   const [allTotalCount, setAllTotalCount] = useState(0);
 
@@ -54,7 +93,7 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
       if (!res.ok) return;
       const data = await res.json();
       if (data.domain) setDomain(data.domain);
-      setMailboxes(data.mailboxes || []);
+      setServerMailboxes(data.mailboxes || []);
       setAllUnreadCount(Number(data.allUnreadCount || 0));
       setAllTotalCount(Number(data.allTotalCount || 0));
     } catch {
@@ -62,36 +101,14 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
     }
   }, []);
 
-  const registerAndFetchMailbox = useCallback(
-    async (mailbox: string) => {
-      if (mailbox === "__all__") {
-        await fetchMailboxes();
-        return;
-      }
-      try {
-        const res = await fetch("/api/mailboxes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: mailbox }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.domain) setDomain(data.domain);
-          setMailboxes(data.mailboxes || []);
-          setAllUnreadCount(Number(data.allUnreadCount || 0));
-          setAllTotalCount(Number(data.allTotalCount || 0));
-          return;
-        }
-      } catch {
-        // fallback below
-      }
-      await fetchMailboxes();
-    },
-    [fetchMailboxes]
-  );
-
   useEffect(() => {
     const fromUrl = resolveMailboxFromWindow() ?? initialMailbox;
+    const initialRecents =
+      fromUrl && fromUrl !== "__all__"
+        ? saveLocalRecentMailbox(fromUrl)
+        : loadLocalRecentMailboxes();
+    setLocalRecentNames(initialRecents);
+
     if (fromUrl) {
       setActiveMailbox(fromUrl);
       const canonicalPath = getMailboxPath(fromUrl);
@@ -101,27 +118,25 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
       ) {
         window.history.replaceState(null, "", canonicalPath);
       }
-      registerAndFetchMailbox(fromUrl);
     } else {
       setActiveMailbox(null);
-      fetchMailboxes();
     }
+    fetchMailboxes();
     setHydrated(true);
-  }, [initialMailbox, fetchMailboxes, registerAndFetchMailbox]);
+  }, [initialMailbox, fetchMailboxes]);
 
   useEffect(() => {
     const handlePopState = () => {
       const fromUrl = resolveMailboxFromWindow();
       setActiveMailbox(fromUrl);
-      if (fromUrl) {
-        registerAndFetchMailbox(fromUrl);
-      } else {
-        fetchMailboxes();
+      if (fromUrl && fromUrl !== "__all__") {
+        setLocalRecentNames(saveLocalRecentMailbox(fromUrl));
       }
+      fetchMailboxes();
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [fetchMailboxes, registerAndFetchMailbox]);
+  }, [fetchMailboxes]);
 
   useEffect(() => {
     if (!activeMailbox) {
@@ -138,7 +153,10 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
       window.history.pushState(null, "", targetPath);
     }
     setActiveMailbox(target);
-    await registerAndFetchMailbox(target);
+    if (target !== "__all__") {
+      setLocalRecentNames(saveLocalRecentMailbox(target));
+    }
+    await fetchMailboxes();
   };
 
   const handleLogout = () => {
@@ -149,6 +167,33 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
     document.title = formatMailboxTitle(null, 0);
     fetchMailboxes();
   };
+
+  // Combine browser-local recent mailboxes with live server counts
+  const mailboxesForDropdown = useMemo<MailboxSummary[]>(() => {
+    const countsByUsername = new Map<string, MailboxSummary>();
+    for (const m of serverMailboxes) {
+      countsByUsername.set(m.username.toLowerCase(), m);
+    }
+
+    const orderedNames = [...localRecentNames];
+    if (
+      activeMailbox &&
+      activeMailbox !== "__all__" &&
+      !orderedNames.includes(activeMailbox)
+    ) {
+      orderedNames.unshift(activeMailbox);
+    }
+
+    return orderedNames.map((name) => {
+      const serverStats = countsByUsername.get(name.toLowerCase());
+      return {
+        username: name,
+        unreadCount: serverStats?.unreadCount ?? 0,
+        totalCount: serverStats?.totalCount ?? 0,
+        lastAccessedAt: serverStats?.lastAccessedAt ?? "",
+      };
+    });
+  }, [localRecentNames, serverMailboxes, activeMailbox]);
 
   if (!hydrated) {
     return <div className="h-screen w-screen bg-[#f0f4f9]" />;
@@ -162,7 +207,7 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
     <InboxShell
       currentMailbox={activeMailbox}
       domain={domain}
-      mailboxes={mailboxes}
+      mailboxes={mailboxesForDropdown}
       allUnreadCount={allUnreadCount}
       allTotalCount={allTotalCount}
       onSwitchMailbox={handleLoginOrSwitch}

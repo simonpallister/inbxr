@@ -248,27 +248,14 @@ export function listMailboxesWithCounts(): {
   const rows = db
     .prepare(
       `
-      WITH all_names AS (
-        SELECT username, last_accessed_at FROM mailboxes
-        UNION
-        SELECT DISTINCT mailbox AS username, MAX(received_at) AS last_accessed_at
-        FROM emails
-        GROUP BY mailbox
-      ),
-      deduped AS (
-        SELECT username, MAX(last_accessed_at) AS last_accessed_at
-        FROM all_names
-        GROUP BY username
-      )
       SELECT
-        d.username AS username,
-        d.last_accessed_at AS lastAccessedAt,
-        COUNT(CASE WHEN e.folder = 'inbox' THEN 1 END) AS totalCount,
-        COUNT(CASE WHEN e.folder = 'inbox' AND e.is_read = 0 THEN 1 END) AS unreadCount
-      FROM deduped d
-      LEFT JOIN emails e ON e.mailbox = d.username
-      GROUP BY d.username
-      ORDER BY d.last_accessed_at DESC
+        mailbox AS username,
+        MAX(received_at) AS lastAccessedAt,
+        COUNT(CASE WHEN folder = 'inbox' THEN 1 END) AS totalCount,
+        COUNT(CASE WHEN folder = 'inbox' AND is_read = 0 THEN 1 END) AS unreadCount
+      FROM emails
+      GROUP BY mailbox
+      ORDER BY lastAccessedAt DESC
     `
     )
     .all() as Array<{
@@ -759,13 +746,11 @@ export function deleteEmailById(id: string): void {
 }
 
 export function clearMailboxEmails(mailbox: string): void {
-  const db = getDb();
-  if (mailbox === "__all__") {
-    db.prepare("DELETE FROM emails").run();
-    db.prepare("DELETE FROM mailboxes").run();
-  } else {
-    db.prepare("DELETE FROM emails WHERE mailbox = ?").run(
-      mailbox.toLowerCase()
-    );
+  if (!mailbox || mailbox === "__all__") {
+    throw new Error("Clearing all mailboxes at once is not allowed");
   }
+  const db = getDb();
+  db.prepare("DELETE FROM emails WHERE mailbox = ?").run(
+    mailbox.toLowerCase()
+  );
 }

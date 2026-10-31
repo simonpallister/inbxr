@@ -1,7 +1,7 @@
 import React from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { listEmails, touchMailbox } from "@/lib/db";
+import { listEmails } from "@/lib/db";
 import {
   parseMailboxSegment,
   formatMailboxTitle,
@@ -25,9 +25,6 @@ export async function generateMetadata({
 
   let unreadCount = 0;
   try {
-    if (parsed !== "__all__") {
-      touchMailbox(parsed);
-    }
     unreadCount = listEmails({ mailbox: parsed, folder: "inbox" }).unreadCount;
   } catch {
     // ignore db error during metadata generation
@@ -44,14 +41,6 @@ export default async function MailboxPage({ params }: MailboxPageProps) {
 
   if (!parsed) {
     notFound();
-  }
-
-  if (parsed !== "__all__") {
-    try {
-      touchMailbox(parsed);
-    } catch {
-      // ignore
-    }
   }
 
   return <MailClientApp initialMailbox={parsed} />;

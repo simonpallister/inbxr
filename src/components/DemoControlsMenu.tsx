@@ -45,6 +45,7 @@ export function DemoControlsMenu({
   const [newPersonaInput, setNewPersonaInput] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [copiedCurl, setCopiedCurl] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   const appsRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -53,6 +54,7 @@ export function DemoControlsMenu({
     const handleClickOutside = (event: MouseEvent) => {
       if (appsRef.current && !appsRef.current.contains(event.target as Node)) {
         setAppsOpen(false);
+        setConfirmingClear(false);
       }
       if (
         accountRef.current &&
@@ -169,32 +171,62 @@ export function DemoControlsMenu({
                 </div>
               </button>
 
-              <button
-                type="button"
-                disabled={busyAction !== null}
-                onClick={async () => {
-                  setBusyAction("clear");
-                  try {
-                    await onClearMailbox();
-                    setAppsOpen(false);
-                  } finally {
-                    setBusyAction(null);
-                  }
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 text-[#b3261e] text-xs font-medium transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4 shrink-0" />
-                <div className="text-left">
-                  <div className="font-medium">
-                    {currentMailbox === "__all__"
-                      ? "Reset All Mailboxes"
-                      : `Clear ${currentMailbox} Inbox`}
+              {currentMailbox !== "__all__" &&
+                (!confirmingClear ? (
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() => setConfirmingClear(true)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 text-[#b3261e] text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    <div className="text-left">
+                      <div className="font-medium">
+                        Clear {currentMailbox} Inbox
+                      </div>
+                      <div className="text-[11px] text-[#b3261e]/80">
+                        Wipe messages for a clean demo run
+                      </div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="p-3 rounded-xl bg-red-50/90 border border-red-200 space-y-2.5">
+                    <div className="text-xs font-medium text-[#b3261e]">
+                      Delete all messages in{" "}
+                      <span className="font-mono font-semibold">
+                        {currentMailbox}@{domain}
+                      </span>
+                      ?
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={busyAction !== null}
+                        onClick={() => setConfirmingClear(false)}
+                        className="px-3 py-1.5 rounded-lg bg-white hover:bg-[#f1f3f4] border border-[#dadce0] text-xs font-medium text-[#3c4043] cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyAction !== null}
+                        onClick={async () => {
+                          setBusyAction("clear");
+                          try {
+                            await onClearMailbox();
+                            setConfirmingClear(false);
+                            setAppsOpen(false);
+                          } finally {
+                            setBusyAction(null);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-[#b3261e] hover:bg-[#8c1d18] text-white text-xs font-medium cursor-pointer"
+                      >
+                        {busyAction === "clear" ? "Clearing..." : "Confirm Clear"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-[#b3261e]/80">
-                    Wipe messages for a clean demo run
-                  </div>
-                </div>
-              </button>
+                ))}
               <div className="pt-2 border-t border-[#f1f3f4] flex items-center justify-between text-[11px] text-[#5f6368]">
                 <span className="inline-flex items-center gap-1">
                   <Terminal className="w-3.5 h-3.5" />
