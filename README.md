@@ -8,18 +8,29 @@ Point your domain's MX record (or webhook forwarder) at Inbxr, type any persona 
 
 ## Key Features
 
-- **Passwordless Persona Login**: Sign into any `@inbxr.cloud` mailbox on the fly (`jane.smith123`, `alex.vip`, etc.) with one-click switching between active personas or a global **Catch-All (`*@inbxr.cloud`)** view.
+- **Passwordless Persona Login & Direct URL Routing**:
+  - Sign into any `@inbxr.cloud` mailbox on the fly (`jane.smith123`, `alex.vip`, etc.) or navigate directly to `https://inbxr.cloud/<username>` (or `https://inbxr.cloud/all` for the global **Catch-All (`*@inbxr.cloud`)** view).
+  - Automatically ignores web crawler and static asset paths (`ads.txt`, `sellers.json`, `security.txt`, `favicon.png`, etc.) so your persona switcher stays clean.
 - **Plus (`+`) Sub-Addressing**: Emails sent to `jane.smith123+abandoned-cart@inbxr.cloud` automatically route into `jane.smith123`'s inbox with a `+abandoned-cart` badge while preserving the original `To:` header.
 - **Real-Time Arrival (SSE)**: New emails stream into the inbox list immediately via Server-Sent Events (`/api/stream`) with a live toast notification—no page refresh needed during a demo.
 - **Accurate HTML Rendering & Open Pixel Firing**:
   - Emails render inside an isolated `<iframe>` only when opened in the reading pane, ensuring **1x1 open-tracking pixels** fire at the exact moment you click the email during a live presentation.
-  - Supports inline `cid:` images and downloadable file attachments (`.ics`, `.pdf`, etc.).
+  - Distinguishes true 1x1 / hidden tracking beacons from responsive content images and supports inline `cid:` images and downloadable file attachments (`.ics`, `.pdf`, etc.).
 - **Martech Realism Touches**:
   - Extracts hidden marketing preheader text cleanly for the inbox list preview.
   - Detects `List-Unsubscribe` headers and displays a Gmail-style **Unsubscribe** link next to the sender address.
+- **Tracking Link Unroller & Redirect Audit (`Show original` → `Links & UTMs`)**:
+  - **One-Click Unroll & Audit (`POST /api/emails/[id]/unroll`)**: Follows opaque ESP click-tracking wrappers (`301`/`302`/`303`/`307`/`308`, up to 8 hops) to reveal the final landing page URL, HTTP status code, latency (`ms`), and full redirect chain.
+  - **Multi-ESP Parameter Extraction**: Automatically extracts `utm_*` tags and ESP/ad tracking parameters (`gclid`, `fbclid`, `msclkid`, Klaviyo `_kx`, Mailchimp `mc_cid`/`mc_eid`, HubSpot `_hsenc`/`_hsmi`, Salesforce `sfmc_id`, Marketo `mkt_tok`, Dotdigital `dm_i`/`dm_t`, and `lid`) from both the initial wrapper and the unrolled destination URL.
+  - **ESP-Agnostic Unsubscribe Protection**: Automatically detects and skips unsubscribe and preference-center links during bulk unrolling using five signals:
+    1. Exact match against the email's `List-Unsubscribe` header URL.
+    2. Common unsubscribe and preference center URL path/query patterns (`/unsub`, `/optout`, `/preferences`, `/t/uns`, `uauto.aspx`, `upc=1`, etc.).
+    3. Anchor text and HTML attribute inspection (`alt`, `title`, `aria-label` on `<a>` and nested `<img>` buttons).
+    4. Surrounding sentence context (`±160` characters) when anchor text is generic (e.g., *"To stop receiving these emails, click **here**"*).
+    5. **Mid-Redirect Hop Guard**: Inspects the `Location` header at each redirect hop and aborts *before* requesting the destination if an opaque tracking link redirects to an unsubscribe or preference URL.
 - **Disguised Presenter Tools**:
-  - **Top-right 9-dot Apps menu (`⋮⋮⋮`)**: Trigger a realistic test campaign email, seed the inbox with background emails, clear/reset the mailbox, or change the configured `@domain` live.
-  - **Message `⋮` menu (`Show original` / `Viewport`)**: Toggle between **Desktop (`100%`)** and **Mobile (`375px`)** viewports, or inspect extracted CTA links, decoded `utm_*` parameters, open-tracking pixels, MIME headers, raw HTML, and plain-text fallbacks.
+  - **Top-right 9-dot Apps menu (`⋮⋮⋮`)**: Trigger a realistic test campaign email, seed the inbox with background emails, clear/reset the mailbox, or copy a ready-to-run webhook `curl` snippet.
+  - **Message `⋮` menu (`Show original` / `Viewport`)**: Toggle between **Desktop (`100%`)** and **Mobile (`375px`)** viewports, or open the **Martech Inspector** to audit links, UTMs, open-tracking pixels, MIME headers, raw HTML, and plain-text fallbacks.
 
 ---
 
