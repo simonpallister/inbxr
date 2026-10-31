@@ -227,6 +227,32 @@ export function EmailReaderPane({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <div className="inline-flex items-center p-0.5 rounded-full border border-[#dadce0] bg-[#f8fafd]">
+            <button
+              type="button"
+              onClick={() => setViewportMode("desktop")}
+              title="Desktop viewport (100%)"
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                viewportMode === "desktop"
+                  ? "bg-[#e8f0fe] text-[#0b57d0]"
+                  : "text-[#5f6368] hover:text-[#1f1f1f]"
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewportMode("mobile")}
+              title="Mobile viewport (375px)"
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                viewportMode === "mobile"
+                  ? "bg-[#e8f0fe] text-[#0b57d0]"
+                  : "text-[#5f6368] hover:text-[#1f1f1f]"
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setInspectorOpen(true)}
