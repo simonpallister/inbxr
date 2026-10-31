@@ -129,6 +129,44 @@ export function getDb(): DatabaseSync {
       ON attachments(email_id);
   `);
 
+  // Clean up any historical web-crawler asset paths that were recorded as mailboxes
+  db.exec(`
+    DELETE FROM mailboxes
+    WHERE username GLOB '*.txt'
+       OR username GLOB '*.json'
+       OR username GLOB '*.xml'
+       OR username GLOB '*.js'
+       OR username GLOB '*.css'
+       OR username GLOB '*.png'
+       OR username GLOB '*.ico'
+       OR username GLOB '*.svg'
+       OR username GLOB '*.php'
+       OR username GLOB '*.map';
+  `);
+
+  // Clean up any historical false-positive tracking pixels (e.g. placehold.co/170x120)
+  const rowsWithPlacehold = db
+    .prepare(
+      `SELECT id, extracted_links FROM emails WHERE extracted_links LIKE '%placehold.co%'`
+    )
+    .all() as Array<{ id: string; extracted_links: string }>;
+  for (const r of rowsWithPlacehold) {
+    try {
+      const parsed = JSON.parse(r.extracted_links) as ExtractedLink[];
+      const filtered = parsed.filter(
+        (item) => !(item.isTrackingPixel && item.url.includes("placehold.co"))
+      );
+      if (filtered.length !== parsed.length) {
+        db.prepare(`UPDATE emails SET extracted_links = ? WHERE id = ?`).run(
+          JSON.stringify(filtered),
+          r.id
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   globalThis.__mailSqliteDb = db;
   return db;
 }
@@ -695,6 +733,7 @@ export function clearMailboxEmails(mailbox: string): void {
   const db = getDb();
   if (mailbox === "__all__") {
     db.prepare("DELETE FROM emails").run();
+    db.prepare("DELETE FROM mailboxes").run();
   } else {
     db.prepare("DELETE FROM emails WHERE mailbox = ?").run(
       mailbox.toLowerCase()

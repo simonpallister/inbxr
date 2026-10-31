@@ -134,10 +134,38 @@ export function extractLinksAndPixels(
     const src = decodeHtmlEntities(srcMatch[1].trim());
     if (!src || src.startsWith("cid:") || src.startsWith("data:")) continue;
 
-    const isOneByOne =
-      /\b(width|height)\s*=\s*["']?1(px)?["']?/i.test(attrs) ||
+    // Check explicit numeric width/height attributes to avoid flagging responsive content images (e.g. width="170")
+    const widthAttr = attrs.match(/\bwidth\s*=\s*["']?\s*(\d+)/i);
+    const heightAttr = attrs.match(/\bheight\s*=\s*["']?\s*(\d+)/i);
+    const explicitWidth = widthAttr ? Number(widthAttr[1]) : null;
+    const explicitHeight = heightAttr ? Number(heightAttr[1]) : null;
+    const hasLargeDimensions =
+      (explicitWidth !== null && explicitWidth > 2) ||
+      (explicitHeight !== null && explicitHeight > 2);
+
+    if (hasLargeDimensions) {
+      continue;
+    }
+
+    const hasTinyAttrDimension =
+      (explicitWidth !== null && explicitWidth <= 1) ||
+      (explicitHeight !== null && explicitHeight <= 1);
+
+    const hasTinyStyleDimension =
+      /\b(?:width|height)\s*:\s*[01](?:px)?\b/i.test(attrs);
+
+    const isHiddenImage =
       /display\s*:\s*none/i.test(attrs) ||
-      /(open|track|pixel|beacon|wf\/open|trk)/i.test(src);
+      /visibility\s*:\s*hidden/i.test(attrs);
+
+    const isTrackingUrl =
+      /\/t\/o\/|\/o\.gif\b|(?:open|track|pixel|beacon|wf\/open|trk)/i.test(src);
+
+    const isOneByOne =
+      hasTinyAttrDimension ||
+      hasTinyStyleDimension ||
+      isHiddenImage ||
+      isTrackingUrl;
 
     if (isOneByOne) {
       const utmParams: Record<string, string> = {};

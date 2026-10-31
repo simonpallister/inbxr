@@ -1,5 +1,6 @@
 import React from "react";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { listEmails, touchMailbox } from "@/lib/db";
 import {
   parseMailboxSegment,
@@ -41,7 +42,11 @@ export default async function MailboxPage({ params }: MailboxPageProps) {
   const { mailbox } = await params;
   const parsed = parseMailboxSegment(mailbox);
 
-  if (parsed && parsed !== "__all__") {
+  if (!parsed) {
+    notFound();
+  }
+
+  if (parsed !== "__all__") {
     try {
       touchMailbox(parsed);
     } catch {

@@ -2,7 +2,9 @@ const RESERVED_PATHS = new Set([
   "api",
   "_next",
   "favicon.ico",
+  "favicon.png",
   "icon.svg",
+  "icon.png",
   "apple-icon.png",
   "apple-touch-icon.png",
   "apple-touch-icon-precomposed.png",
@@ -11,7 +13,16 @@ const RESERVED_PATHS = new Set([
   "manifest.json",
   "manifest.webmanifest",
   "site.webmanifest",
+  "ads.txt",
+  "app-ads.txt",
+  "sellers.json",
+  "security.txt",
+  "humans.txt",
+  ".well-known",
 ]);
+
+const ASSET_EXTENSION_REGEX =
+  /\.(?:txt|json|xml|js|mjs|cjs|css|map|ico|png|jpg|jpeg|gif|svg|webp|avif|woff|woff2|ttf|eot|otf|pdf|zip|gz|tar|php|asp|aspx|jsp|cgi|env|yml|yaml|toml|ini|log|sql|bak)$/i;
 
 /**
  * Parses a URL path segment or query value into a normalized mailbox identifier.
@@ -29,7 +40,11 @@ export function parseMailboxSegment(raw: string | null | undefined): string | nu
   }
 
   const trimmed = decoded.trim().toLowerCase().replace(/^\/+|\/+$/g, "");
-  if (!trimmed || RESERVED_PATHS.has(trimmed)) {
+  if (
+    !trimmed ||
+    RESERVED_PATHS.has(trimmed) ||
+    ASSET_EXTENSION_REGEX.test(trimmed)
+  ) {
     return null;
   }
 
@@ -51,7 +66,11 @@ export function parseMailboxSegment(raw: string | null | undefined): string | nu
   const [baseMailbox = ""] = localPart.split("+");
   const cleaned = baseMailbox.replace(/[^a-z0-9._-]/g, "");
 
-  if (!cleaned || RESERVED_PATHS.has(cleaned)) {
+  if (
+    !cleaned ||
+    RESERVED_PATHS.has(cleaned) ||
+    ASSET_EXTENSION_REGEX.test(cleaned)
+  ) {
     return null;
   }
 
