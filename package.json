@@ -1,0 +1,29 @@
+{
+  "name": "inbxr",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --no-warnings server.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production node --no-warnings server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.475.0",
+    "mailparser": "^3.7.2",
+    "next": "latest",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "smtp-server": "^3.13.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.9",
+    "@types/mailparser": "^3.4.0",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/smtp-server": "latest",
+    "tailwindcss": "^4.0.9",
+    "typescript": "^5.8.2"
+  }
+}

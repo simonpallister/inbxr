@@ -1,0 +1,19 @@
+services:
+  inbxr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inbxr
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SMTP_PORT=25
+      - MAIL_DOMAIN=${MAIL_DOMAIN:-inbxr.cloud}
+      - DATABASE_PATH=/data/mail.db
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+    ports:
+      - "127.0.0.1:3010:3000"
+      - "25:25"
+    volumes:
+      - ./data:/data
