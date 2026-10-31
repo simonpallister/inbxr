@@ -14,6 +14,7 @@ export interface LinkUnrollResult {
   durationMs: number;
   checkedAt: string;
   error?: string | null;
+  abortedProtectedRedirect?: boolean;
 }
 
 export interface ExtractedLink {
@@ -21,6 +22,7 @@ export interface ExtractedLink {
   text: string;
   isTrackingPixel: boolean;
   utmParams: Record<string, string>;
+  category?: "cta" | "unsubscribe" | "preferences" | "view_online";
   unrolled?: LinkUnrollResult | null;
 }
 

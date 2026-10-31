@@ -7,6 +7,7 @@ import {
   updateEmailExtractedLinks,
 } from "@/lib/db";
 import {
+  type LinkCategory,
   classifyEmailLink,
   extractTrackingParamsFromUrl,
 } from "@/lib/link-utils";
@@ -41,9 +42,16 @@ function isSafePublicUrl(rawUrl: string): boolean {
   }
 }
 
-async function unrollSingleUrl(startUrl: string): Promise<{
+async function unrollSingleUrl(
+  startUrl: string,
+  options: {
+    listUnsubscribeUrl?: string | null;
+    abortOnProtectedRedirect: boolean;
+  }
+): Promise<{
   unrolled: LinkUnrollResult;
   discoveredUtms: Record<string, string>;
+  discoveredCategory: LinkCategory | null;
 }> {
   const startedAt = Date.now();
   const hops: LinkRedirectHop[] = [];
@@ -62,12 +70,15 @@ async function unrollSingleUrl(startUrl: string): Promise<{
         error: "Skipped non-public or unsupported URL scheme",
       },
       discoveredUtms,
+      discoveredCategory: null,
     };
   }
 
   let currentUrl = startUrl;
   let finalStatus: number | null = null;
   let errorMsg: string | null = null;
+  let abortedProtectedRedirect = false;
+  let discoveredCategory: LinkCategory | null = null;
 
   for (let hopIndex = 0; hopIndex < MAX_HOPS; hopIndex++) {
     if (!isSafePublicUrl(currentUrl)) {
@@ -111,6 +122,24 @@ async function unrollSingleUrl(startUrl: string): Promise<{
       if (isRedirect && locationHeader) {
         const nextUrl = new URL(locationHeader, currentUrl).toString();
         Object.assign(discoveredUtms, extractTrackingParamsFromUrl(nextUrl));
+
+        // Hop-by-hop guard: check if the redirect destination is an unsubscribe/preferences URL
+        const hopCategory = classifyEmailLink({
+          url: nextUrl,
+          listUnsubscribeUrl: options.listUnsubscribeUrl,
+        });
+        if (
+          hopCategory === "unsubscribe" ||
+          hopCategory === "preferences"
+        ) {
+          discoveredCategory = hopCategory;
+          if (options.abortOnProtectedRedirect) {
+            currentUrl = nextUrl;
+            abortedProtectedRedirect = true;
+            break;
+          }
+        }
+
         currentUrl = nextUrl;
         continue;
       }
@@ -132,8 +161,10 @@ async function unrollSingleUrl(startUrl: string): Promise<{
       durationMs: Date.now() - startedAt,
       checkedAt: new Date().toISOString(),
       error: errorMsg,
+      abortedProtectedRedirect,
     },
     discoveredUtms,
+    discoveredCategory,
   };
 }
 
@@ -160,6 +191,9 @@ export async function POST(
     utmParams: { ...(l.utmParams || {}) },
   }));
 
+  const isExplicitSingleRequest =
+    typeof body.url === "string" || typeof body.linkIndex === "number";
+
   // Determine which unique URLs to unroll
   const urlsToUnroll = new Set<string>();
 
@@ -175,7 +209,13 @@ export async function POST(
     // Bulk unroll: include all regular non-unsubscribe/non-preferences links
     for (const link of links) {
       if (link.isTrackingPixel) continue;
-      const category = classifyEmailLink(link.url, link.text);
+      const category =
+        link.category ||
+        classifyEmailLink({
+          url: link.url,
+          text: link.text,
+          listUnsubscribeUrl: email.listUnsubscribe,
+        });
       if (category === "unsubscribe" || category === "preferences") {
         continue;
       }
@@ -186,7 +226,11 @@ export async function POST(
   const uniqueUrls = Array.from(urlsToUnroll);
   const resultsByUrl = new Map<
     string,
-    { unrolled: LinkUnrollResult; discoveredUtms: Record<string, string> }
+    {
+      unrolled: LinkUnrollResult;
+      discoveredUtms: Record<string, string>;
+      discoveredCategory: LinkCategory | null;
+    }
   >();
 
   // Process in batches of 4 concurrent requests
@@ -196,7 +240,10 @@ export async function POST(
     const settled = await Promise.all(
       batch.map(async (u) => ({
         url: u,
-        result: await unrollSingleUrl(u),
+        result: await unrollSingleUrl(u, {
+          listUnsubscribeUrl: email.listUnsubscribe,
+          abortOnProtectedRedirect: !isExplicitSingleRequest,
+        }),
       }))
     );
     for (const item of settled) {
@@ -210,6 +257,7 @@ export async function POST(
     if (!match) return link;
     return {
       ...link,
+      category: match.discoveredCategory || link.category,
       utmParams: {
         ...link.utmParams,
         ...match.discoveredUtms,

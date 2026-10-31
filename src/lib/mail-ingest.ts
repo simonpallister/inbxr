@@ -91,28 +91,65 @@ export function parseListUnsubscribeHeader(
 }
 
 export function extractLinksAndPixels(
-  html: string | null | undefined
+  html: string | null | undefined,
+  listUnsubscribeUrl?: string | null
 ): ExtractedLink[] {
   if (!html) return [];
   const results: ExtractedLink[] = [];
 
   // Extract <a href="...">...</a>
-  const anchorRegex = /<a\b[^>]*?\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const anchorRegex = /<a\b([^>]*?)\bhref\s*=\s*["']([^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi;
   for (const match of html.matchAll(anchorRegex)) {
-    const rawUrl = decodeHtmlEntities(match[1].trim());
+    const fullAnchorAttrs = `${match[1] || ""} ${match[3] || ""}`;
+    const rawUrl = decodeHtmlEntities(match[2].trim());
     if (!rawUrl || rawUrl.startsWith("#") || rawUrl.startsWith("javascript:")) {
       continue;
     }
+    const innerHtml = match[4] || "";
     const innerText = decodeHtmlEntities(
-      match[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      innerHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
     );
+
+    // Extract alt / title / aria-label from nested <img> or <a> attributes
+    const imgAltMatch = innerHtml.match(/\balt\s*=\s*["']([^"']+)["']/i);
+    const titleMatch =
+      fullAnchorAttrs.match(/\b(?:title|aria-label)\s*=\s*["']([^"']+)["']/i) ||
+      innerHtml.match(/\btitle\s*=\s*["']([^"']+)["']/i);
+    const fallbackLabel = decodeHtmlEntities(
+      (imgAltMatch?.[1] || titleMatch?.[1] || "").trim()
+    );
+
+    // Extract surrounding ~120 characters of plain text before/after the <a> tag for context
+    const matchStart = match.index ?? 0;
+    const matchEnd = matchStart + match[0].length;
+    const windowHtml =
+      html.slice(Math.max(0, matchStart - 160), matchStart) +
+      " " +
+      html.slice(matchEnd, Math.min(html.length, matchEnd + 160));
+    const contextText = decodeHtmlEntities(
+      windowHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+    );
+
+    const displayText =
+      innerText ||
+      (fallbackLabel ? `[Image: ${fallbackLabel}]` : "(Image / Button Link)");
+
+    const category = classifyEmailLink({
+      url: rawUrl,
+      text: innerText || fallbackLabel,
+      attrHint: `${fullAnchorAttrs} ${fallbackLabel}`,
+      contextText,
+      listUnsubscribeUrl,
+    });
+
     const utmParams = extractTrackingParamsFromUrl(rawUrl);
 
     results.push({
       url: rawUrl,
-      text: innerText || "(Image / Button Link)",
+      text: displayText,
       isTrackingPixel: false,
       utmParams,
+      category,
     });
   }
 
@@ -276,7 +313,7 @@ export async function ingestRawMime(
 
   const listUnsubscribe = parseListUnsubscribeHeader(listUnsubRaw);
   const listUnsubscribePost = rawHeaders["list-unsubscribe-post"] || null;
-  const extractedLinks = extractLinksAndPixels(htmlBodyRaw);
+  const extractedLinks = extractLinksAndPixels(htmlBodyRaw, listUnsubscribe);
 
   // Deliver to each unique target recipient
   const seenTargets = new Set<string>();
@@ -421,7 +458,7 @@ export function ingestStructuredEmail(
   const listUnsubscribe =
     payload.listUnsubscribe ||
     parseListUnsubscribeHeader(rawHeaders["list-unsubscribe"]);
-  const extractedLinks = extractLinksAndPixels(htmlBody);
+  const extractedLinks = extractLinksAndPixels(htmlBody, listUnsubscribe);
 
   const rawMimeLines = Object.entries(rawHeaders).map(
     ([k, v]) => `${k}: ${v}`

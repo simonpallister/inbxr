@@ -66,7 +66,13 @@ export function OriginalInspectorModal({
   const trackingPixels = links.filter((l) => l.isTrackingPixel);
 
   const safeRegularLinks = regularLinks.filter((l) => {
-    const cat = classifyEmailLink(l.url, l.text);
+    const cat =
+      l.category ||
+      classifyEmailLink({
+        url: l.url,
+        text: l.text,
+        listUnsubscribeUrl: email.listUnsubscribe,
+      });
     return cat !== "unsubscribe" && cat !== "preferences";
   });
 
@@ -266,10 +272,9 @@ export function OriginalInspectorModal({
                       Tracked CTA &amp; Body Links ({regularLinks.length})
                     </h3>
                     <p className="text-[11px] text-[#5f6368] mt-0.5">
-                      Unrolling follows ESP redirect wrappers (e.g.{" "}
-                      <code className="font-mono text-[#1f1f1f]">ddlnk.net</code>
-                      ) to reveal final URLs, HTTP status &amp; UTM tags while
-                      skipping unsubscribe links.
+                      Follows ESP click-tracking redirects to reveal final
+                      landing URLs, HTTP status &amp; UTM tags while protecting
+                      unsubscribe links.
                     </p>
                   </div>
 
@@ -309,7 +314,13 @@ export function OriginalInspectorModal({
                 ) : (
                   <div className="border border-[#e1e5ea] rounded-xl overflow-hidden divide-y divide-[#e1e5ea]">
                     {regularLinks.map((link, idx) => {
-                      const category = classifyEmailLink(link.url, link.text);
+                      const category =
+                        link.category ||
+                        classifyEmailLink({
+                          url: link.url,
+                          text: link.text,
+                          listUnsubscribeUrl: email.listUnsubscribe,
+                        });
                       const isProtected =
                         category === "unsubscribe" ||
                         category === "preferences";
@@ -461,6 +472,17 @@ export function OriginalInspectorModal({
                                   {unrolled.finalUrl}
                                 </a>
                               </div>
+
+                              {unrolled.abortedProtectedRedirect && (
+                                <div className="text-[11px] text-amber-800 flex items-center gap-1">
+                                  <ShieldAlert className="w-3 h-3 shrink-0" />
+                                  <span>
+                                    Redirect pointed to an unsubscribe /
+                                    preferences URL — stopped before loading
+                                    destination.
+                                  </span>
+                                </div>
+                              )}
 
                               {unrolled.error && (
                                 <div className="text-[11px] text-red-600">
