@@ -25,6 +25,7 @@ interface EmailListPaneProps {
   onToggleCheck: (id: string) => void;
   onToggleSelectAll: () => void;
   onToggleStar: (id: string, currentStarred: boolean) => void;
+  onDeleteEmail: (id: string) => void;
   onRefresh: () => void;
   onBulkMarkRead: (isRead: boolean) => void;
   onBulkDelete: () => void;
@@ -65,6 +66,7 @@ export function EmailListPane({
   onToggleCheck,
   onToggleSelectAll,
   onToggleStar,
+  onDeleteEmail,
   onRefresh,
   onBulkMarkRead,
   onBulkDelete,
@@ -246,10 +248,10 @@ export function EmailListPane({
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       {email.hasAttachments && (
-                        <Paperclip className="w-3.5 h-3.5 text-[#5f6368]" />
+                        <Paperclip className="w-3.5 h-3.5 text-[#5f6368] group-hover:hidden" />
                       )}
                       <span
-                        className={`text-xs whitespace-nowrap ${
+                        className={`text-xs whitespace-nowrap group-hover:hidden ${
                           unread
                             ? "font-semibold text-[#0b57d0]"
                             : "text-[#5f6368]"
@@ -257,6 +259,19 @@ export function EmailListPane({
                       >
                         {formatListTime(email.receivedAt)}
                       </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteEmail(email.id);
+                        }}
+                        title={
+                          folder === "trash" ? "Delete forever" : "Delete"
+                        }
+                        className="hidden group-hover:flex w-6 h-6 -my-1 rounded-full hover:bg-black/10 items-center justify-center text-[#444746] hover:text-[#1f1f1f] transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 

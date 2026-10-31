@@ -14,7 +14,6 @@ import {
   Smartphone,
   Monitor,
   Code2,
-  Printer,
   CheckCircle2,
 } from "lucide-react";
 import type { EmailDetail } from "@/lib/db";
@@ -227,14 +226,23 @@ export function EmailReaderPane({
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            onClick={() => window.print()}
-            title="Print"
+            onClick={() => setInspectorOpen(true)}
+            title="Open Martech Inspector"
+            className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-full border border-[#dadce0] hover:bg-[#f1f3f4] text-xs font-medium text-[#444746] transition-colors cursor-pointer"
+          >
+            <Code2 className="w-3.5 h-3.5 text-[#0b57d0]" />
+            <span>Inspector</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(email.id)}
+            title="Delete"
             className="w-8 h-8 rounded-full hover:bg-[#f1f3f4] flex items-center justify-center text-[#444746] cursor-pointer"
           >
-            <Printer className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>

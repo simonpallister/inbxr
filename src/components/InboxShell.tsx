@@ -491,6 +491,7 @@ export function InboxShell({
               onToggleCheck={handleToggleCheck}
               onToggleSelectAll={handleToggleSelectAll}
               onToggleStar={handleToggleStar}
+              onDeleteEmail={handleDeleteSingle}
               onRefresh={() => fetchEmailList(false)}
               onBulkMarkRead={handleBulkMarkRead}
               onBulkDelete={handleBulkDelete}
