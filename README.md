@@ -10,7 +10,14 @@ Point your domain's MX record (or webhook forwarder) at Inbxr, type any persona 
 
 - **Passwordless Persona Login & Direct URL Routing**:
   - Sign into any `@inbxr.cloud` mailbox on the fly (`jane.smith123`, `alex.vip`, etc.) or navigate directly to `https://inbxr.cloud/<username>` (or `https://inbxr.cloud/all` for the global **Catch-All (`*@inbxr.cloud`)** view).
-  - Automatically ignores web crawler and static asset paths (`ads.txt`, `sellers.json`, `security.txt`, `favicon.png`, etc.) so your persona switcher stays clean.
+  - Recent mailbox history is stored locally per browser (`localStorage`) and paired with live unread counts from `/api/mailboxes`.
+  - Automatically ignores web crawler and static asset paths (`ads.txt`, `sellers.json`, `security.txt`, `favicon.png`, etc.).
+- **Side-by-Side Persona Comparison (Dynamic Content Demos)**:
+  - Launch **Compare Mode** from the email reader header (`Compare`), by hovering over any second email in the list, or by checking two emails in the inbox list.
+  - Auto-collapses the inbox list and folder rail so both email variants render side-by-side at full screen width.
+  - **Cross-Mailbox Variant Picker**: Compare emails across different personas on the domain without leaving the view.
+  - **Synchronized Scrolling**: Scroll both variants in lockstep (with a lock/unlock toggle) to compare hero banners, personalized product grids, and footers.
+  - **Subject & Preheader Diff Badges**: Automatically highlights differences in recipient (`+tag`), subject line, preheader snippet, and body content.
 - **Plus (`+`) Sub-Addressing**: Emails sent to `jane.smith123+abandoned-cart@inbxr.cloud` automatically route into `jane.smith123`'s inbox with a `+abandoned-cart` badge while preserving the original `To:` header.
 - **Real-Time Arrival (SSE)**: New emails stream into the inbox list immediately via Server-Sent Events (`/api/stream`) with a live toast notification—no page refresh needed during a demo.
 - **Accurate HTML Rendering & Open Pixel Firing**:
@@ -116,3 +123,12 @@ EOF
      }
    }
    ```
+
+---
+
+## Future Ideas (Backlog)
+
+- **Deliverability, Gmail Clipping & Compliance Scorecard**: Surface HTML byte size vs. Gmail's `102 KB` clipping threshold, RFC 8058 One-Click `List-Unsubscribe-Post` validation, and parsed DKIM signing domains (`d=`) / `Feedback-ID` in the Inspector and `to me ▾` popover.
+- **Dark Mode & "Images Blocked" Preview Toggles**: Simulate email client dark-mode inversion and images-off (`alt`-text fallback) rendering directly in the reading pane.
+- **Pre-Send QA & Accessibility Checklist**: Automated checks for missing image `alt` attributes, placeholder/broken links, subject/preheader mobile truncation length, and plain-text fallback coverage.
+- **Direct Email Permalinks & `.eml` Export**: Shareable URL query parameter (`?msg=<id>`) to link directly to a specific email, plus one-click `.eml` file download.

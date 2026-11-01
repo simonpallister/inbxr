@@ -11,6 +11,7 @@ import {
   Inbox,
   Send,
   FileText,
+  Columns2,
 } from "lucide-react";
 import type { EmailSummary } from "@/lib/db";
 
@@ -26,6 +27,7 @@ interface EmailListPaneProps {
   onToggleSelectAll: () => void;
   onToggleStar: (id: string, currentStarred: boolean) => void;
   onDeleteEmail: (id: string) => void;
+  onCompareEmails: (leftId: string, rightId?: string) => void;
   onRefresh: () => void;
   onBulkMarkRead: (isRead: boolean) => void;
   onBulkDelete: () => void;
@@ -67,6 +69,7 @@ export function EmailListPane({
   onToggleSelectAll,
   onToggleStar,
   onDeleteEmail,
+  onCompareEmails,
   onRefresh,
   onBulkMarkRead,
   onBulkDelete,
@@ -74,6 +77,7 @@ export function EmailListPane({
   const allChecked =
     emails.length > 0 && selectedCheckedIds.size === emails.length;
   const someChecked = selectedCheckedIds.size > 0;
+  const checkedArray = Array.from(selectedCheckedIds);
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-[#eceff1] select-none">
@@ -126,6 +130,19 @@ export function EmailListPane({
               >
                 <Trash2 className="w-4 h-4" />
               </button>
+              {checkedArray.length === 2 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onCompareEmails(checkedArray[0], checkedArray[1])
+                  }
+                  title="Compare these 2 emails side-by-side"
+                  className="ml-1 inline-flex items-center gap-1 px-2.5 h-7 rounded-full bg-[#e8f0fe] hover:bg-[#d3e3fd] text-[#0b57d0] text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <Columns2 className="w-3.5 h-3.5" />
+                  <span>Compare</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -259,19 +276,34 @@ export function EmailListPane({
                       >
                         {formatListTime(email.receivedAt)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteEmail(email.id);
-                        }}
-                        title={
-                          folder === "trash" ? "Delete forever" : "Delete"
-                        }
-                        className="hidden group-hover:flex w-6 h-6 -my-1 rounded-full hover:bg-black/10 items-center justify-center text-[#444746] hover:text-[#1f1f1f] transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="hidden group-hover:flex items-center gap-0.5 -my-1">
+                        {selectedId && selectedId !== email.id && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onCompareEmails(selectedId, email.id);
+                            }}
+                            title="Compare side-by-side with open email"
+                            className="w-6 h-6 rounded-full hover:bg-black/10 flex items-center justify-center text-[#0b57d0] transition-colors cursor-pointer"
+                          >
+                            <Columns2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteEmail(email.id);
+                          }}
+                          title={
+                            folder === "trash" ? "Delete forever" : "Delete"
+                          }
+                          className="w-6 h-6 rounded-full hover:bg-black/10 flex items-center justify-center text-[#444746] hover:text-[#1f1f1f] transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 

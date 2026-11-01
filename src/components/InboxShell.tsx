@@ -21,6 +21,7 @@ import type {
 import { formatMailboxTitle } from "@/lib/mailbox-url";
 import { EmailListPane } from "./EmailListPane";
 import { EmailReaderPane } from "./EmailReaderPane";
+import { EmailComparePane } from "./EmailComparePane";
 import { DemoControlsMenu } from "./DemoControlsMenu";
 
 interface InboxShellProps {
@@ -60,6 +61,15 @@ export function InboxShell({
     new Set()
   );
 
+  const [isComparing, setIsComparing] = useState(false);
+  const [compareRightEmail, setCompareRightEmail] =
+    useState<EmailDetail | null>(null);
+  const [isLoadingCompareRight, setIsLoadingCompareRight] = useState(false);
+  const [domainEmails, setDomainEmails] = useState<EmailSummary[]>([]);
+  const [compareViewportMode, setCompareViewportMode] = useState<
+    "desktop" | "mobile"
+  >("desktop");
+
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -98,6 +108,8 @@ export function InboxShell({
     setSelectedId(null);
     setSelectedEmail(null);
     setSelectedCheckedIds(new Set());
+    setIsComparing(false);
+    setCompareRightEmail(null);
   }, [currentMailbox, folder]);
 
   useEffect(() => {
@@ -139,32 +151,125 @@ export function InboxShell({
     };
   }, [currentMailbox, fetchEmailList, onRefreshMailboxes, showToast]);
 
+  const fetchEmailDetailById = useCallback(
+    async (id: string): Promise<EmailDetail | null> => {
+      try {
+        const res = await fetch(`/api/emails/${id}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const detail: EmailDetail = data.email;
+        if (!detail.isRead) {
+          await fetch(`/api/emails/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isRead: true }),
+          });
+          setEmails((prev) =>
+            prev.map((m) => (m.id === id ? { ...m, isRead: true } : m))
+          );
+          setUnreadCount((c) => Math.max(0, c - 1));
+          onRefreshMailboxes();
+        }
+        return detail;
+      } catch {
+        return null;
+      }
+    },
+    [onRefreshMailboxes]
+  );
+
+  const fetchAllDomainEmails = useCallback(async (): Promise<EmailSummary[]> => {
+    try {
+      const res = await fetch("/api/emails?mailbox=__all__&folder=inbox");
+      if (!res.ok) return emails;
+      const data = await res.json();
+      const list: EmailSummary[] = data.emails || [];
+      setDomainEmails(list);
+      return list;
+    } catch {
+      return emails;
+    }
+  }, [emails]);
+
   const handleSelectEmail = async (id: string) => {
     setSelectedId(id);
     setIsLoadingDetail(true);
     try {
-      const res = await fetch(`/api/emails/${id}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const detail: EmailDetail = data.email;
-      setSelectedEmail(detail);
-
-      // Mark as read automatically when opened in reading pane
-      if (!detail.isRead) {
-        await fetch(`/api/emails/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isRead: true }),
-        });
-        setEmails((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, isRead: true } : m))
-        );
-        setUnreadCount((c) => Math.max(0, c - 1));
-        onRefreshMailboxes();
+      const detail = await fetchEmailDetailById(id);
+      if (detail) {
+        setSelectedEmail(detail);
       }
     } finally {
       setIsLoadingDetail(false);
     }
+  };
+
+  const handleStartCompare = async (leftId: string, explicitRightId?: string) => {
+    setIsComparing(true);
+    setSelectedCheckedIds(new Set());
+
+    // Ensure left email is loaded
+    let leftDetail = selectedEmail?.id === leftId ? selectedEmail : null;
+    if (!leftDetail) {
+      setSelectedId(leftId);
+      setIsLoadingDetail(true);
+      leftDetail = await fetchEmailDetailById(leftId);
+      setSelectedEmail(leftDetail);
+      setIsLoadingDetail(false);
+    }
+
+    const allList = await fetchAllDomainEmails();
+
+    // Pick right email ID
+    let targetRightId = explicitRightId;
+    if (!targetRightId) {
+      const sameMailboxCandidate = emails.find((e) => e.id !== leftId);
+      const anyDomainCandidate = allList.find((e) => e.id !== leftId);
+      targetRightId = sameMailboxCandidate?.id || anyDomainCandidate?.id;
+    }
+
+    if (targetRightId) {
+      setIsLoadingCompareRight(true);
+      try {
+        const rightDetail = await fetchEmailDetailById(targetRightId);
+        setCompareRightEmail(rightDetail);
+      } finally {
+        setIsLoadingCompareRight(false);
+      }
+    } else {
+      setCompareRightEmail(null);
+    }
+  };
+
+  const handleSelectCompareLeft = async (id: string) => {
+    if (selectedEmail?.id === id) return;
+    setSelectedId(id);
+    const detail = await fetchEmailDetailById(id);
+    if (detail) {
+      setSelectedEmail(detail);
+    }
+  };
+
+  const handleSelectCompareRight = async (id: string) => {
+    if (compareRightEmail?.id === id) return;
+    setIsLoadingCompareRight(true);
+    try {
+      const detail = await fetchEmailDetailById(id);
+      if (detail) {
+        setCompareRightEmail(detail);
+      }
+    } finally {
+      setIsLoadingCompareRight(false);
+    }
+  };
+
+  const handleSwapCompareEmails = () => {
+    if (!selectedEmail || !compareRightEmail) return;
+    const prevLeft = selectedEmail;
+    const prevRight = compareRightEmail;
+    setSelectedId(prevRight.id);
+    setSelectedEmail(prevRight);
+    setCompareRightEmail(prevLeft);
   };
 
   const handleToggleStar = async (id: string, currentStarred: boolean) => {
@@ -416,98 +521,123 @@ export function InboxShell({
 
       {/* Main Content Area: Folder Rail + 2 Main Panes */}
       <div className="flex-1 flex min-h-0 pr-3 pb-3">
-        {/* Left Folder Rail */}
-        <aside
-          className={`${
-            sidebarCollapsed ? "w-16" : "w-60"
-          } shrink-0 px-2 flex flex-col justify-between transition-all duration-150 select-none`}
-        >
-          <div>
-            {/* Inert Vanity Compose Button */}
-            <div className="mb-4 px-1">
-              <button
-                type="button"
-                className={`flex items-center gap-3 bg-[#c2e7ff] hover:shadow-md text-[#001d35] font-medium text-sm rounded-2xl transition-all cursor-pointer ${
-                  sidebarCollapsed
-                    ? "w-12 h-12 justify-center"
-                    : "px-5 py-4"
-                }`}
-              >
-                <Pencil className="w-4 h-4 shrink-0" />
-                {!sidebarCollapsed && <span>Compose</span>}
-              </button>
+        {/* Left Folder Rail (auto-collapsed during Compare Mode for max width) */}
+        {!isComparing && (
+          <aside
+            className={`${
+              sidebarCollapsed ? "w-16" : "w-60"
+            } shrink-0 px-2 flex flex-col justify-between transition-all duration-150 select-none`}
+          >
+            <div>
+              {/* Inert Vanity Compose Button */}
+              <div className="mb-4 px-1">
+                <button
+                  type="button"
+                  className={`flex items-center gap-3 bg-[#c2e7ff] hover:shadow-md text-[#001d35] font-medium text-sm rounded-2xl transition-all cursor-pointer ${
+                    sidebarCollapsed
+                      ? "w-12 h-12 justify-center"
+                      : "px-5 py-4"
+                  }`}
+                >
+                  <Pencil className="w-4 h-4 shrink-0" />
+                  {!sidebarCollapsed && <span>Compose</span>}
+                </button>
+              </div>
+
+              {/* Folders */}
+              <nav className="space-y-0.5">
+                {navItems.map((item) => {
+                  const active = folder === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setFolder(item.key)}
+                      title={item.label}
+                      className={`w-full flex items-center justify-between rounded-full text-sm transition-colors cursor-pointer ${
+                        sidebarCollapsed
+                          ? "w-10 h-10 mx-auto justify-center"
+                          : "px-4 py-2"
+                      } ${
+                        active
+                          ? "bg-[#d3e3fd] text-[#001d35] font-semibold"
+                          : "text-[#444746] hover:bg-[#e8eaed]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        {item.icon}
+                        {!sidebarCollapsed && <span>{item.label}</span>}
+                      </div>
+                      {!sidebarCollapsed &&
+                        typeof item.badge === "number" &&
+                        item.badge > 0 && (
+                          <span className="text-xs font-semibold">
+                            {item.badge}
+                          </span>
+                        )}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
+          </aside>
+        )}
 
-            {/* Folders */}
-            <nav className="space-y-0.5">
-              {navItems.map((item) => {
-                const active = folder === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setFolder(item.key)}
-                    title={item.label}
-                    className={`w-full flex items-center justify-between rounded-full text-sm transition-colors cursor-pointer ${
-                      sidebarCollapsed
-                        ? "w-10 h-10 mx-auto justify-center"
-                        : "px-4 py-2"
-                    } ${
-                      active
-                        ? "bg-[#d3e3fd] text-[#001d35] font-semibold"
-                        : "text-[#444746] hover:bg-[#e8eaed]"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5">
-                      {item.icon}
-                      {!sidebarCollapsed && <span>{item.label}</span>}
-                    </div>
-                    {!sidebarCollapsed &&
-                      typeof item.badge === "number" &&
-                      item.badge > 0 && (
-                        <span className="text-xs font-semibold">
-                          {item.badge}
-                        </span>
-                      )}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </aside>
-
-        {/* 2 Main Panes Container (Split-pane list + reader) */}
-        <main className="flex-1 flex min-w-0 bg-white rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[#e1e5ea] overflow-hidden">
-          {/* Pane 1: Email List */}
-          <div className="w-[360px] md:w-[400px] lg:w-[440px] shrink-0 h-full">
-            <EmailListPane
-              emails={emails}
-              selectedId={selectedId}
-              selectedCheckedIds={selectedCheckedIds}
-              folder={folder}
-              isCatchAll={currentMailbox === "__all__"}
-              isLoading={isLoadingList}
-              onSelectEmail={handleSelectEmail}
-              onToggleCheck={handleToggleCheck}
-              onToggleSelectAll={handleToggleSelectAll}
-              onToggleStar={handleToggleStar}
-              onDeleteEmail={handleDeleteSingle}
-              onRefresh={() => fetchEmailList(false)}
-              onBulkMarkRead={handleBulkMarkRead}
-              onBulkDelete={handleBulkDelete}
+        {/* Main Card Container */}
+        <main
+          className={`flex-1 flex min-w-0 bg-white rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-[#e1e5ea] overflow-hidden ${
+            isComparing ? "ml-3" : ""
+          }`}
+        >
+          {isComparing && selectedEmail ? (
+            <EmailComparePane
+              leftEmail={selectedEmail}
+              rightEmail={compareRightEmail}
+              isLoadingRight={isLoadingCompareRight}
+              domainEmails={domainEmails.length > 0 ? domainEmails : emails}
+              viewportMode={compareViewportMode}
+              onChangeViewportMode={setCompareViewportMode}
+              onSelectLeftEmail={handleSelectCompareLeft}
+              onSelectRightEmail={handleSelectCompareRight}
+              onSwapEmails={handleSwapCompareEmails}
+              onExitCompare={() => setIsComparing(false)}
             />
-          </div>
+          ) : (
+            <>
+              {/* Pane 1: Email List */}
+              <div className="w-[360px] md:w-[400px] lg:w-[440px] shrink-0 h-full">
+                <EmailListPane
+                  emails={emails}
+                  selectedId={selectedId}
+                  selectedCheckedIds={selectedCheckedIds}
+                  folder={folder}
+                  isCatchAll={currentMailbox === "__all__"}
+                  isLoading={isLoadingList}
+                  onSelectEmail={handleSelectEmail}
+                  onToggleCheck={handleToggleCheck}
+                  onToggleSelectAll={handleToggleSelectAll}
+                  onToggleStar={handleToggleStar}
+                  onDeleteEmail={handleDeleteSingle}
+                  onCompareEmails={handleStartCompare}
+                  onRefresh={() => fetchEmailList(false)}
+                  onBulkMarkRead={handleBulkMarkRead}
+                  onBulkDelete={handleBulkDelete}
+                />
+              </div>
 
-          {/* Pane 2: Email Reading Pane */}
-          <div className="flex-1 min-w-0 h-full">
-            <EmailReaderPane
-              email={selectedEmail}
-              isLoading={isLoadingDetail}
-              onToggleStar={handleToggleStar}
-              onMarkUnread={handleMarkUnread}
-              onDelete={handleDeleteSingle}
-            />
-          </div>
+              {/* Pane 2: Email Reading Pane */}
+              <div className="flex-1 min-w-0 h-full">
+                <EmailReaderPane
+                  email={selectedEmail}
+                  isLoading={isLoadingDetail}
+                  onToggleStar={handleToggleStar}
+                  onMarkUnread={handleMarkUnread}
+                  onDelete={handleDeleteSingle}
+                  onStartCompare={(id) => handleStartCompare(id)}
+                />
+              </div>
+            </>
+          )}
         </main>
       </div>
 

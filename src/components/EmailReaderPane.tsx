@@ -14,6 +14,7 @@ import {
   Smartphone,
   Monitor,
   Code2,
+  Columns2,
   CheckCircle2,
 } from "lucide-react";
 import type { EmailDetail } from "@/lib/db";
@@ -25,6 +26,7 @@ interface EmailReaderPaneProps {
   onToggleStar: (id: string, currentStarred: boolean) => void;
   onMarkUnread: (id: string) => void;
   onDelete: (id: string) => void;
+  onStartCompare: (id: string) => void;
 }
 
 function getAvatarBg(name: string): string {
@@ -96,6 +98,7 @@ export function EmailReaderPane({
   onToggleStar,
   onMarkUnread,
   onDelete,
+  onStartCompare,
 }: EmailReaderPaneProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -253,6 +256,15 @@ export function EmailReaderPane({
               <Smartphone className="w-3.5 h-3.5" />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => onStartCompare(email.id)}
+            title="Compare side-by-side with another email"
+            className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-full border border-[#dadce0] hover:bg-[#f1f3f4] text-xs font-medium text-[#444746] transition-colors cursor-pointer"
+          >
+            <Columns2 className="w-3.5 h-3.5 text-[#0b57d0]" />
+            <span>Compare</span>
+          </button>
           <button
             type="button"
             onClick={() => setInspectorOpen(true)}
