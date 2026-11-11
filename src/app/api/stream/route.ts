@@ -1,8 +1,12 @@
+import { requireStaffAuth } from "@/lib/auth";
 import { getMailEventBus, type NewEmailEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { searchParams } = new URL(request.url);
   const mailboxFilter = (searchParams.get("mailbox") || "__all__").toLowerCase();
 

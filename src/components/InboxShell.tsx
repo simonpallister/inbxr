@@ -27,22 +27,26 @@ import { DemoControlsMenu } from "./DemoControlsMenu";
 interface InboxShellProps {
   currentMailbox: string;
   domain: string;
+  staffEmail?: string | null;
   mailboxes: MailboxSummary[];
   allUnreadCount: number;
   allTotalCount: number;
   onSwitchMailbox: (mailbox: string) => void;
   onLogout: () => void;
+  onStaffSignOut?: () => void;
   onRefreshMailboxes: () => void;
 }
 
 export function InboxShell({
   currentMailbox,
   domain,
+  staffEmail,
   mailboxes,
   allUnreadCount,
   allTotalCount,
   onSwitchMailbox,
   onLogout,
+  onStaffSignOut,
   onRefreshMailboxes,
 }: InboxShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -508,11 +512,13 @@ export function InboxShell({
         <DemoControlsMenu
           currentMailbox={currentMailbox}
           domain={domain}
+          staffEmail={staffEmail}
           mailboxes={mailboxes}
           allUnreadCount={allUnreadCount}
           allTotalCount={allTotalCount}
           onSwitchMailbox={onSwitchMailbox}
           onLogout={onLogout}
+          onStaffSignOut={onStaffSignOut}
           onSeedInbox={handleSeedInbox}
           onTriggerTestEmail={handleTriggerTestEmail}
           onClearMailbox={handleClearMailbox}

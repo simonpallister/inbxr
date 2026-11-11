@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/auth";
 import {
   getDomain,
   listMailboxesWithCounts,
@@ -7,7 +8,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const data = listMailboxesWithCounts();
   return NextResponse.json({
     domain: getDomain(),
@@ -16,6 +20,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   try {
     const body = (await request.json()) as { username?: string };
     if (!body.username || typeof body.username !== "string") {

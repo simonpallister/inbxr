@@ -144,6 +144,23 @@ export function getDb(): DatabaseSync {
 
     CREATE INDEX IF NOT EXISTS idx_attachments_email_id
       ON attachments(email_id);
+
+    CREATE TABLE IF NOT EXISTS auth_challenges (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      used INTEGER NOT NULL DEFAULT 0,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_auth_challenges_email
+      ON auth_challenges(email, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_auth_challenges_token
+      ON auth_challenges(token_hash);
   `);
 
   // Clean up any historical web-crawler asset paths that were recorded as mailboxes

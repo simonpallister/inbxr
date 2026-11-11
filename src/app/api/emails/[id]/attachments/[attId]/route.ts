@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/auth";
 import { getAttachmentBinary } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +8,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string; attId: string }> }
 ) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { id, attId } = await context.params;
   const { searchParams } = new URL(request.url);
   const download = searchParams.get("download") === "1";

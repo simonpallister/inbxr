@@ -18,11 +18,13 @@ import { getMailboxPath } from "@/lib/mailbox-url";
 interface DemoControlsMenuProps {
   currentMailbox: string;
   domain: string;
+  staffEmail?: string | null;
   mailboxes: MailboxSummary[];
   allUnreadCount: number;
   allTotalCount: number;
   onSwitchMailbox: (mailbox: string) => void;
   onLogout: () => void;
+  onStaffSignOut?: () => void;
   onSeedInbox: () => Promise<void>;
   onTriggerTestEmail: () => Promise<void>;
   onClearMailbox: () => Promise<void>;
@@ -31,11 +33,13 @@ interface DemoControlsMenuProps {
 export function DemoControlsMenu({
   currentMailbox,
   domain,
+  staffEmail,
   mailboxes,
   allUnreadCount,
   allTotalCount,
   onSwitchMailbox,
   onLogout,
+  onStaffSignOut,
   onSeedInbox,
   onTriggerTestEmail,
   onClearMailbox,
@@ -408,17 +412,38 @@ export function DemoControlsMenu({
               </form>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setAccountOpen(false);
-                onLogout();
-              }}
-              className="mt-2.5 w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white hover:bg-[#f8fafd] text-xs font-medium text-[#1f1f1f] shadow-2xs transition-colors cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5 text-[#5f6368]" />
-              <span>Sign out</span>
-            </button>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountOpen(false);
+                  onLogout();
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full bg-white hover:bg-[#f8fafd] text-xs font-medium text-[#1f1f1f] shadow-2xs transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5 text-[#5f6368]" />
+                <span>Close inbox</span>
+              </button>
+
+              {staffEmail && onStaffSignOut && (
+                <button
+                  type="button"
+                  title={`Signed in as ${staffEmail} — click to lock session`}
+                  onClick={() => {
+                    setAccountOpen(false);
+                    onStaffSignOut();
+                  }}
+                  className="px-3.5 py-2.5 rounded-full bg-white hover:bg-red-50 text-xs font-medium text-[#5f6368] hover:text-[#b3261e] shadow-2xs transition-colors cursor-pointer"
+                >
+                  Lock
+                </button>
+              )}
+            </div>
+            {staffEmail && (
+              <div className="mt-2 text-center text-[10px] text-[#5f6368] truncate">
+                Staff session: {staffEmail}
+              </div>
+            )}
           </div>
         )}
       </div>

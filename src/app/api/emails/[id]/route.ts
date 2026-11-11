@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/auth";
 import {
   deleteEmailById,
   getEmailById,
@@ -8,9 +9,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { id } = await context.params;
   const email = getEmailById(id);
   if (!email) {
@@ -23,6 +27,9 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { id } = await context.params;
   const body = (await request.json()) as {
     isRead?: boolean;
@@ -37,9 +44,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { id } = await context.params;
   deleteEmailById(id);
   return NextResponse.json({ ok: true });

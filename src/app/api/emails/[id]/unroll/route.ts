@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/auth";
 import {
   type ExtractedLink,
   type LinkRedirectHop,
@@ -172,6 +173,9 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { id } = await context.params;
   const email = getEmailById(id);
 

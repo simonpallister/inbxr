@@ -12,6 +12,7 @@ import { InboxShell } from "@/components/InboxShell";
 
 interface MailClientAppProps {
   initialMailbox?: string | null;
+  initialStaffEmail?: string | null;
 }
 
 const RECENT_MAILBOXES_STORAGE_KEY = "inbxr_recent_mailboxes";
@@ -76,7 +77,13 @@ function resolveMailboxFromWindow(): string | null {
   return null;
 }
 
-export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
+export function MailClientApp({
+  initialMailbox = null,
+  initialStaffEmail = null,
+}: MailClientAppProps) {
+  const [staffEmail, setStaffEmail] = useState<string | null>(
+    initialStaffEmail
+  );
   const [activeMailbox, setActiveMailbox] = useState<string | null>(
     initialMailbox
   );
@@ -90,6 +97,10 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
   const fetchMailboxes = useCallback(async () => {
     try {
       const res = await fetch("/api/mailboxes");
+      if (res.status === 401) {
+        setStaffEmail(null);
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       if (data.domain) setDomain(data.domain);
@@ -112,18 +123,36 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
     if (fromUrl) {
       setActiveMailbox(fromUrl);
       const canonicalPath = getMailboxPath(fromUrl);
+      const hasAuthError = new URLSearchParams(window.location.search).has(
+        "auth_error"
+      );
       if (
-        window.location.pathname !== canonicalPath ||
-        window.location.search !== ""
+        !hasAuthError &&
+        (window.location.pathname !== canonicalPath ||
+          window.location.search !== "")
       ) {
         window.history.replaceState(null, "", canonicalPath);
       }
     } else {
       setActiveMailbox(null);
     }
-    fetchMailboxes();
+
+    if (staffEmail) {
+      fetchMailboxes();
+    } else {
+      fetch("/api/auth/session")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.domain) setDomain(d.domain);
+          if (d?.authenticated && d?.email) {
+            setStaffEmail(d.email);
+            fetchMailboxes();
+          }
+        })
+        .catch(() => {});
+    }
     setHydrated(true);
-  }, [initialMailbox, fetchMailboxes]);
+  }, [initialMailbox, staffEmail, fetchMailboxes]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -132,17 +161,19 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
       if (fromUrl && fromUrl !== "__all__") {
         setLocalRecentNames(saveLocalRecentMailbox(fromUrl));
       }
-      fetchMailboxes();
+      if (staffEmail) {
+        fetchMailboxes();
+      }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [fetchMailboxes]);
+  }, [staffEmail, fetchMailboxes]);
 
   useEffect(() => {
-    if (!activeMailbox) {
+    if (!activeMailbox || !staffEmail) {
       document.title = formatMailboxTitle(null, 0);
     }
-  }, [activeMailbox]);
+  }, [activeMailbox, staffEmail]);
 
   const handleLoginOrSwitch = async (username: string) => {
     const target =
@@ -159,13 +190,34 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
     await fetchMailboxes();
   };
 
-  const handleLogout = () => {
+  const handleCloseInbox = () => {
     if (window.location.pathname !== "/") {
       window.history.pushState(null, "", "/");
     }
     setActiveMailbox(null);
     document.title = formatMailboxTitle(null, 0);
-    fetchMailboxes();
+    if (staffEmail) {
+      fetchMailboxes();
+    }
+  };
+
+  const handleStaffAuthenticated = async (verifiedEmail: string) => {
+    setStaffEmail(verifiedEmail);
+    await fetchMailboxes();
+  };
+
+  const handleStaffSignOut = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    setStaffEmail(null);
+    setActiveMailbox(null);
+    if (window.location.pathname !== "/") {
+      window.history.pushState(null, "", "/");
+    }
+    document.title = formatMailboxTitle(null, 0);
   };
 
   // Combine browser-local recent mailboxes with live server counts
@@ -199,19 +251,30 @@ export function MailClientApp({ initialMailbox = null }: MailClientAppProps) {
     return <div className="h-screen w-screen bg-[#f0f4f9]" />;
   }
 
-  if (!activeMailbox) {
-    return <LoginScreen domain={domain} onLogin={handleLoginOrSwitch} />;
+  if (!staffEmail || !activeMailbox) {
+    return (
+      <LoginScreen
+        domain={domain}
+        staffEmail={staffEmail}
+        pendingMailbox={!staffEmail ? activeMailbox : null}
+        onAuthenticated={handleStaffAuthenticated}
+        onStaffSignOut={handleStaffSignOut}
+        onLogin={handleLoginOrSwitch}
+      />
+    );
   }
 
   return (
     <InboxShell
       currentMailbox={activeMailbox}
       domain={domain}
+      staffEmail={staffEmail}
       mailboxes={mailboxesForDropdown}
       allUnreadCount={allUnreadCount}
       allTotalCount={allTotalCount}
       onSwitchMailbox={handleLoginOrSwitch}
-      onLogout={handleLogout}
+      onLogout={handleCloseInbox}
+      onStaffSignOut={handleStaffSignOut}
       onRefreshMailboxes={fetchMailboxes}
     />
   );

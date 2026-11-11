@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireStaffAuth } from "@/lib/auth";
 import {
   bulkUpdateEmails,
   clearMailboxEmails,
@@ -15,6 +16,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   const { searchParams } = new URL(request.url);
   const mailbox = (searchParams.get("mailbox") || "demo").trim();
   const folderParam = searchParams.get("folder") || "inbox";
@@ -39,6 +43,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = requireStaffAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
   try {
     const body = (await request.json()) as {
       action: "seed" | "test-email" | "clear" | "bulk-update";
