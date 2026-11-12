@@ -190,7 +190,7 @@ export function LoginScreen({
   ];
 
   return (
-    <div className="min-h-screen w-full bg-[#f0f4f9] flex flex-col justify-center items-center p-6 md:p-10 select-text overflow-y-auto">
+    <div className="h-screen w-full bg-[#f0f4f9] flex flex-col justify-center items-center p-6 md:p-10 select-text overflow-y-auto">
       <div className="w-full max-w-[1040px] grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center my-auto">
         {/* Left column: What inbxr does & why */}
         <div className="lg:col-span-7 space-y-6">

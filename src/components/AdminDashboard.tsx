@@ -179,7 +179,7 @@ export function AdminDashboard({
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen w-full bg-[#f0f4f9] flex flex-col justify-center items-center p-6 select-text">
+      <div className="h-screen w-full overflow-y-auto bg-[#f0f4f9] flex flex-col justify-center items-center p-6 select-text">
         <div className="w-full max-w-md bg-white rounded-[28px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-[#e1e5ea] p-8">
           <div className="flex items-center justify-between mb-6">
             <div className="inline-flex items-center gap-2.5 select-none">
@@ -253,7 +253,7 @@ export function AdminDashboard({
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#f6f8fc] text-[#1f1f1f] flex flex-col">
+    <div className="h-screen w-full overflow-y-auto bg-[#f6f8fc] text-[#1f1f1f] flex flex-col select-text">
       {/* Top Header */}
       <header className="bg-white border-b border-[#e1e5ea] px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
