@@ -2,7 +2,7 @@ import React from "react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
+import { getStaffOrAdminSessionFromCookies } from "@/lib/auth";
 import { listEmails } from "@/lib/db";
 import {
   parseMailboxSegment,
@@ -26,9 +26,7 @@ export async function generateMetadata({
   }
 
   const cookieStore = await cookies();
-  const session = verifySessionToken(
-    cookieStore.get(SESSION_COOKIE_NAME)?.value
-  );
+  const session = getStaffOrAdminSessionFromCookies(cookieStore);
   if (!session) {
     return { title: "Sign in – inbxr" };
   }
@@ -54,9 +52,7 @@ export default async function MailboxPage({ params }: MailboxPageProps) {
   }
 
   const cookieStore = await cookies();
-  const session = verifySessionToken(
-    cookieStore.get(SESSION_COOKIE_NAME)?.value
-  );
+  const session = getStaffOrAdminSessionFromCookies(cookieStore);
 
   return (
     <MailClientApp

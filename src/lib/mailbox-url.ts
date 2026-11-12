@@ -1,5 +1,6 @@
 const RESERVED_PATHS = new Set([
   "api",
+  "admin",
   "_next",
   "favicon.ico",
   "favicon.png",

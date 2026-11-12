@@ -771,3 +771,192 @@ export function clearMailboxEmails(mailbox: string): void {
     mailbox.toLowerCase()
   );
 }
+
+export interface AdminMailboxRow {
+  username: string;
+  totalInboxCount: number;
+  unreadCount: number;
+  readCount: number;
+  trashCount: number;
+  totalAllFoldersCount: number;
+  lastEmailAt: string | null;
+  lastAccessedAt: string | null;
+}
+
+export interface AdminMailboxesPaginatedResult {
+  mailboxes: AdminMailboxRow[];
+  totalMailboxes: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  summary: {
+    totalMailboxesWithMail: number;
+    totalInboxEmails: number;
+    totalUnreadEmails: number;
+    totalReadEmails: number;
+    totalTrashEmails: number;
+  };
+}
+
+export function listAdminMailboxesPaginated(options: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: "recent" | "total" | "unread" | "alpha";
+  includeEmpty?: boolean;
+}): AdminMailboxesPaginatedResult {
+  const db = getDb();
+  const page = Math.max(1, Math.floor(options.page || 1));
+  const pageSize = Math.min(100, Math.max(5, Math.floor(options.pageSize || 20)));
+  const search = (options.search || "").trim().toLowerCase();
+  const sort = options.sort || "recent";
+  const includeEmpty = Boolean(options.includeEmpty);
+
+  const summaryRow = db
+    .prepare(
+      `
+      SELECT
+        COUNT(DISTINCT mailbox) AS totalMailboxesWithMail,
+        COUNT(CASE WHEN folder = 'inbox' THEN 1 END) AS totalInboxEmails,
+        COUNT(CASE WHEN folder = 'inbox' AND is_read = 0 THEN 1 END) AS totalUnreadEmails,
+        COUNT(CASE WHEN folder = 'inbox' AND is_read = 1 THEN 1 END) AS totalReadEmails,
+        COUNT(CASE WHEN folder = 'trash' THEN 1 END) AS totalTrashEmails
+      FROM emails
+      `
+    )
+    .get() as {
+    totalMailboxesWithMail: number;
+    totalInboxEmails: number;
+    totalUnreadEmails: number;
+    totalReadEmails: number;
+    totalTrashEmails: number;
+  };
+
+  const baseCte = `
+    WITH all_names AS (
+      SELECT DISTINCT LOWER(mailbox) AS username FROM emails
+      UNION
+      SELECT DISTINCT LOWER(username) AS username FROM mailboxes
+    ),
+    email_stats AS (
+      SELECT
+        LOWER(mailbox) AS username,
+        COUNT(CASE WHEN folder = 'inbox' THEN 1 END) AS totalInboxCount,
+        COUNT(CASE WHEN folder = 'inbox' AND is_read = 0 THEN 1 END) AS unreadCount,
+        COUNT(CASE WHEN folder = 'inbox' AND is_read = 1 THEN 1 END) AS readCount,
+        COUNT(CASE WHEN folder = 'trash' THEN 1 END) AS trashCount,
+        COUNT(*) AS totalAllFoldersCount,
+        MAX(received_at) AS lastEmailAt
+      FROM emails
+      GROUP BY LOWER(mailbox)
+    ),
+    combined AS (
+      SELECT
+        n.username AS username,
+        COALESCE(e.totalInboxCount, 0) AS totalInboxCount,
+        COALESCE(e.unreadCount, 0) AS unreadCount,
+        COALESCE(e.readCount, 0) AS readCount,
+        COALESCE(e.trashCount, 0) AS trashCount,
+        COALESCE(e.totalAllFoldersCount, 0) AS totalAllFoldersCount,
+        e.lastEmailAt AS lastEmailAt,
+        m.last_accessed_at AS lastAccessedAt,
+        COALESCE(e.lastEmailAt, m.last_accessed_at, '') AS sortActivityAt
+      FROM all_names n
+      LEFT JOIN email_stats e ON e.username = n.username
+      LEFT JOIN mailboxes m ON LOWER(m.username) = n.username
+      WHERE n.username != '__all__' AND n.username != 'admin'
+    )
+  `;
+
+  const whereClauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (!includeEmpty) {
+    whereClauses.push("totalAllFoldersCount > 0");
+  }
+  if (search) {
+    whereClauses.push("username LIKE ?");
+    params.push(`%${search}%`);
+  }
+
+  const whereSql =
+    whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  let orderBySql = "ORDER BY sortActivityAt DESC, username ASC";
+  if (sort === "total") {
+    orderBySql = "ORDER BY totalInboxCount DESC, unreadCount DESC, username ASC";
+  } else if (sort === "unread") {
+    orderBySql = "ORDER BY unreadCount DESC, totalInboxCount DESC, username ASC";
+  } else if (sort === "alpha") {
+    orderBySql = "ORDER BY username ASC";
+  }
+
+  const countRow = db
+    .prepare(`${baseCte} SELECT COUNT(*) AS cnt FROM combined ${whereSql}`)
+    .get(...params) as { cnt: number } | undefined;
+
+  const totalMailboxes = Number(countRow?.cnt || 0);
+  const totalPages = Math.max(1, Math.ceil(totalMailboxes / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * pageSize;
+
+  const rows = db
+    .prepare(
+      `${baseCte}
+       SELECT
+         username,
+         totalInboxCount,
+         unreadCount,
+         readCount,
+         trashCount,
+         totalAllFoldersCount,
+         lastEmailAt,
+         lastAccessedAt
+       FROM combined
+       ${whereSql}
+       ${orderBySql}
+       LIMIT ? OFFSET ?`
+    )
+    .all(...params, pageSize, offset) as Array<Record<string, unknown>>;
+
+  return {
+    mailboxes: rows.map((r) => ({
+      username: String(r.username),
+      totalInboxCount: Number(r.totalInboxCount || 0),
+      unreadCount: Number(r.unreadCount || 0),
+      readCount: Number(r.readCount || 0),
+      trashCount: Number(r.trashCount || 0),
+      totalAllFoldersCount: Number(r.totalAllFoldersCount || 0),
+      lastEmailAt: r.lastEmailAt ? String(r.lastEmailAt) : null,
+      lastAccessedAt: r.lastAccessedAt ? String(r.lastAccessedAt) : null,
+    })),
+    totalMailboxes,
+    page: safePage,
+    pageSize,
+    totalPages,
+    summary: {
+      totalMailboxesWithMail: Number(summaryRow?.totalMailboxesWithMail || 0),
+      totalInboxEmails: Number(summaryRow?.totalInboxEmails || 0),
+      totalUnreadEmails: Number(summaryRow?.totalUnreadEmails || 0),
+      totalReadEmails: Number(summaryRow?.totalReadEmails || 0),
+      totalTrashEmails: Number(summaryRow?.totalTrashEmails || 0),
+    },
+  };
+}
+
+export function deleteMailboxCompletely(mailbox: string): void {
+  const clean = mailbox.trim().toLowerCase();
+  if (!clean || clean === "__all__") {
+    throw new Error("Invalid mailbox name");
+  }
+  const db = getDb();
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM emails WHERE LOWER(mailbox) = ?").run(clean);
+    db.prepare("DELETE FROM mailboxes WHERE LOWER(username) = ?").run(clean);
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}

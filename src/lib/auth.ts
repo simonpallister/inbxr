@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
 export const SESSION_COOKIE_NAME = "inbxr_session";
+export const ADMIN_COOKIE_NAME = "inbxr_admin_session";
 export const SESSION_MAX_AGE_SECONDS = 90 * 24 * 60 * 60; // 90 days
 export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export const MAX_VERIFY_ATTEMPTS = 5;
@@ -12,6 +13,13 @@ export const ALLOWED_STAFF_DOMAIN = "dotdigital.com";
 
 export interface StaffSession {
   email: string;
+  iat: number;
+  exp: number;
+  isAdmin?: boolean;
+}
+
+export interface AdminSession {
+  role: "admin";
   iat: number;
   exp: number;
 }
@@ -145,13 +153,88 @@ export function verifySessionToken(
     if (!decoded.email || typeof decoded.exp !== "number" || decoded.exp < nowSec) {
       return null;
     }
-    if (!decoded.email.endsWith(`@${ALLOWED_STAFF_DOMAIN}`)) {
+    if (
+      !decoded.isAdmin &&
+      !decoded.email.endsWith(`@${ALLOWED_STAFF_DOMAIN}`)
+    ) {
       return null;
     }
     return decoded;
   } catch {
     return null;
   }
+}
+
+export function createAdminSessionToken(): string {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const payload: AdminSession = {
+    role: "admin",
+    iat: nowSec,
+    exp: nowSec + SESSION_MAX_AGE_SECONDS,
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload), "utf8").toString(
+    "base64url"
+  );
+  const signature = signPayload(payloadB64);
+  return `${payloadB64}.${signature}`;
+}
+
+export function verifyAdminSessionToken(
+  token: string | undefined | null
+): AdminSession | null {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+
+  const [payloadB64, providedSig] = parts;
+  if (!payloadB64 || !providedSig) return null;
+
+  const expectedSig = signPayload(payloadB64);
+  const a = Buffer.from(providedSig);
+  const b = Buffer.from(expectedSig);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(payloadB64, "base64url").toString("utf8")
+    ) as AdminSession;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (
+      decoded.role !== "admin" ||
+      typeof decoded.exp !== "number" ||
+      decoded.exp < nowSec
+    ) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+export function getStaffOrAdminSessionFromCookies(cookieStore: {
+  get(name: string): { value: string } | undefined;
+}): StaffSession | null {
+  const staff = verifySessionToken(
+    cookieStore.get(SESSION_COOKIE_NAME)?.value
+  );
+  if (staff) return staff;
+
+  const admin = verifyAdminSessionToken(
+    cookieStore.get(ADMIN_COOKIE_NAME)?.value
+  );
+  if (admin) {
+    return {
+      email: "admin@inbxr.cloud",
+      iat: admin.iat,
+      exp: admin.exp,
+      isAdmin: true,
+    };
+  }
+  return null;
 }
 
 export function parseCookieHeader(
@@ -178,7 +261,81 @@ export function getStaffSessionFromRequest(
   request: Request
 ): StaffSession | null {
   const cookies = parseCookieHeader(request.headers.get("cookie"));
-  return verifySessionToken(cookies[SESSION_COOKIE_NAME]);
+  const staff = verifySessionToken(cookies[SESSION_COOKIE_NAME]);
+  if (staff) return staff;
+
+  const admin = verifyAdminSessionToken(cookies[ADMIN_COOKIE_NAME]);
+  if (admin) {
+    return {
+      email: "admin@inbxr.cloud",
+      iat: admin.iat,
+      exp: admin.exp,
+      isAdmin: true,
+    };
+  }
+  return null;
+}
+
+export function getAdminSessionFromRequest(
+  request: Request
+): AdminSession | null {
+  const cookies = parseCookieHeader(request.headers.get("cookie"));
+  return verifyAdminSessionToken(cookies[ADMIN_COOKIE_NAME]);
+}
+
+export function requireAdminAuth(
+  request: Request
+):
+  | { session: AdminSession; errorResponse?: undefined }
+  | { session?: undefined; errorResponse: NextResponse } {
+  const session = getAdminSessionFromRequest(request);
+  if (!session) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Admin authentication required" },
+        { status: 401 }
+      ),
+    };
+  }
+  return { session };
+}
+
+export function verifyAdminPassword(providedPassword: string): boolean {
+  const configured = (process.env.ADMIN_PASSWORD || "").trim();
+  if (!configured || !providedPassword) return false;
+
+  const a = Buffer.from(
+    crypto.createHash("sha256").update(providedPassword).digest("hex")
+  );
+  const b = Buffer.from(
+    crypto.createHash("sha256").update(configured).digest("hex")
+  );
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+export function attachAdminSessionCookie(response: NextResponse): NextResponse {
+  const token = createAdminSessionToken();
+  const isProd = process.env.NODE_ENV === "production";
+  response.cookies.set(ADMIN_COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProd,
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  });
+  return response;
+}
+
+export function clearAdminSessionCookie(response: NextResponse): NextResponse {
+  const isProd = process.env.NODE_ENV === "production";
+  response.cookies.set(ADMIN_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProd,
+    path: "/",
+    maxAge: 0,
+  });
+  return response;
 }
 
 export function requireStaffAuth(
