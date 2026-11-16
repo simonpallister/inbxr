@@ -1,19 +1,7 @@
-import crypto from "node:crypto";
 import http from "node:http";
 import { parse } from "node:url";
 import next from "next";
 import { SMTPServer } from "smtp-server";
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __inbxrInternalInboundSecret: string | undefined;
-}
-
-if (!globalThis.__inbxrInternalInboundSecret) {
-  globalThis.__inbxrInternalInboundSecret =
-    process.env.WEBHOOK_SECRET?.trim() ||
-    crypto.randomBytes(24).toString("hex");
-}
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
@@ -73,9 +61,8 @@ async function bootstrap() {
           if (recipients.length > 0) {
             headers["x-envelope-to"] = recipients.join(", ");
           }
-          if (globalThis.__inbxrInternalInboundSecret) {
-            headers["x-webhook-secret"] =
-              globalThis.__inbxrInternalInboundSecret;
+          if (process.env.WEBHOOK_SECRET) {
+            headers["x-webhook-secret"] = process.env.WEBHOOK_SECRET;
           }
 
           const res = await fetch(`http://127.0.0.1:${port}/api/inbound`, {

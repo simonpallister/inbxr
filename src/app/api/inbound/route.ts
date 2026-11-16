@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  getInternalInboundSecret,
-  getStaffSessionFromRequest,
-} from "@/lib/auth";
-import {
   ingestRawMime,
   ingestStructuredEmail,
 } from "@/lib/mail-ingest";
@@ -12,14 +8,14 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const expectedSecret = getInternalInboundSecret();
-    const providedSecret =
-      request.headers.get("x-webhook-secret") ||
-      new URL(request.url).searchParams.get("secret");
-    const staffSession = getStaffSessionFromRequest(request);
-
-    if (providedSecret !== expectedSecret && !staffSession) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const webhookSecret = (process.env.WEBHOOK_SECRET || "").trim();
+    if (webhookSecret) {
+      const provided =
+        request.headers.get("x-webhook-secret") ||
+        new URL(request.url).searchParams.get("secret");
+      if (provided !== webhookSecret) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const contentType = (
