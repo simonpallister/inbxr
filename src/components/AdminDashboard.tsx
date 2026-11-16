@@ -72,6 +72,7 @@ export function AdminDashboard({
     null
   );
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [emptyingTrash, setEmptyingTrash] = useState(false);
 
   const [summary, setSummary] = useState({
     totalMailboxesWithMail: 0,
@@ -174,6 +175,22 @@ export function AdminDashboard({
       }
     } finally {
       setDeletingUser(null);
+    }
+  };
+
+  const handleEmptyAllTrash = async () => {
+    setEmptyingTrash(true);
+    try {
+      const res = await fetch("/api/admin/mailboxes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "empty-trash" }),
+      });
+      if (res.ok) {
+        await fetchMailboxes();
+      }
+    } finally {
+      setEmptyingTrash(false);
     }
   };
 
@@ -325,8 +342,18 @@ export function AdminDashboard({
             <div className="text-2xl font-semibold text-[#1f1f1f]">
               {summary.totalInboxEmails}
             </div>
-            <div className="text-[11px] text-[#5f6368] mt-0.5">
-              +{summary.totalTrashEmails} in trash
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[#5f6368] mt-0.5">
+              <span>+{summary.totalTrashEmails} in trash (auto-purged daily)</span>
+              {summary.totalTrashEmails > 0 && (
+                <button
+                  type="button"
+                  disabled={emptyingTrash}
+                  onClick={handleEmptyAllTrash}
+                  className="text-[#b3261e] hover:underline font-medium shrink-0 cursor-pointer"
+                >
+                  {emptyingTrash ? "Emptying..." : "Empty now"}
+                </button>
+              )}
             </div>
           </div>
 

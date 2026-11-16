@@ -3,6 +3,7 @@ import { requireStaffAuth } from "@/lib/auth";
 import {
   bulkUpdateEmails,
   clearMailboxEmails,
+  emptyTrashEmails,
   getDomain,
   listEmails,
   touchMailbox,
@@ -26,6 +27,13 @@ export async function GET(request: Request) {
 
   if (mailbox !== "__all__") {
     touchMailbox(mailbox);
+  }
+
+  // Opportunistic daily trash cleanup (purges trashed messages older than 24 hours)
+  try {
+    emptyTrashEmails({ olderThanHours: 24 });
+  } catch {
+    // ignore cleanup error
   }
 
   const folder = (

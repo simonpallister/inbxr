@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/auth";
 import {
   deleteMailboxCompletely,
+  emptyTrashEmails,
   getDomain,
   listAdminMailboxesPaginated,
 } from "@/lib/db";
@@ -62,6 +63,33 @@ export async function DELETE(request: Request) {
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message || "Failed to delete mailbox" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  const auth = requireAdminAuth(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
+  try {
+    const body = (await request.json()) as {
+      action?: "empty-trash";
+      olderThanHours?: number;
+    };
+
+    if (body.action === "empty-trash") {
+      const deletedCount = emptyTrashEmails({
+        olderThanHours: body.olderThanHours,
+      });
+      emitMailboxUpdated("__all__");
+      return NextResponse.json({ ok: true, deletedCount });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (err) {
+    return NextResponse.json(
+      { error: (err as Error).message || "Operation failed" },
       { status: 500 }
     );
   }

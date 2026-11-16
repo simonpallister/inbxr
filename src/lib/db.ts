@@ -163,6 +163,13 @@ export function getDb(): DatabaseSync {
       ON auth_challenges(token_hash);
   `);
 
+  // Ensure trashed_at column exists on emails for automatic daily trash cleanup
+  try {
+    db.exec(`ALTER TABLE emails ADD COLUMN trashed_at TEXT;`);
+  } catch {
+    // column already exists
+  }
+
   // Clean up any historical web-crawler asset paths that were recorded as mailboxes
   db.exec(`
     DELETE FROM mailboxes
@@ -693,6 +700,8 @@ export function updateEmailFlags(
   if (updates.folder) {
     sets.push("folder = ?");
     params.push(updates.folder);
+    sets.push("trashed_at = ?");
+    params.push(updates.folder === "trash" ? new Date().toISOString() : "");
   }
 
   if (sets.length > 0) {
@@ -736,6 +745,8 @@ export function bulkUpdateEmails(
   if (updates.folder) {
     sets.push("folder = ?");
     params.push(updates.folder);
+    sets.push("trashed_at = ?");
+    params.push(updates.folder === "trash" ? new Date().toISOString() : "");
   }
 
   if (sets.length > 0) {
@@ -959,4 +970,34 @@ export function deleteMailboxCompletely(mailbox: string): void {
     db.exec("ROLLBACK");
     throw err;
   }
+}
+
+export function emptyTrashEmails(options?: {
+  mailbox?: string;
+  olderThanHours?: number;
+}): number {
+  const db = getDb();
+  const conditions: string[] = ["folder = 'trash'"];
+  const params: Array<string | number> = [];
+
+  if (options?.mailbox && options.mailbox !== "__all__") {
+    conditions.push("LOWER(mailbox) = ?");
+    params.push(options.mailbox.trim().toLowerCase());
+  }
+
+  if (typeof options?.olderThanHours === "number" && options.olderThanHours > 0) {
+    const cutoffIso = new Date(
+      Date.now() - options.olderThanHours * 60 * 60 * 1000
+    ).toISOString();
+    conditions.push(
+      "COALESCE(NULLIF(trashed_at, ''), received_at) < ?"
+    );
+    params.push(cutoffIso);
+  }
+
+  const result = db
+    .prepare(`DELETE FROM emails WHERE ${conditions.join(" AND ")}`)
+    .run(...params);
+
+  return Number(result.changes || 0);
 }

@@ -2,6 +2,7 @@ import http from "node:http";
 import { parse } from "node:url";
 import next from "next";
 import { SMTPServer } from "smtp-server";
+import { emptyTrashEmails } from "./src/lib/db.ts";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
@@ -111,6 +112,23 @@ async function bootstrap() {
       `[SMTP] Catch-all SMTP server listening on ${hostname}:${configuredSmtpPort}`
     );
   });
+
+  // Daily automatic trash cleanup (purges trashed emails older than 24 hours, checked hourly)
+  const runDailyTrashCleanup = () => {
+    try {
+      const purged = emptyTrashEmails({ olderThanHours: 24 });
+      if (purged > 0) {
+        console.log(
+          `[Cleanup] Purged ${purged} trashed email(s) older than 24 hours.`
+        );
+      }
+    } catch (err) {
+      console.error("[Cleanup] Failed running trash cleanup:", err);
+    }
+  };
+
+  runDailyTrashCleanup();
+  setInterval(runDailyTrashCleanup, 60 * 60 * 1000);
 }
 
 bootstrap().catch((err) => {
