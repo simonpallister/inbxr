@@ -14,6 +14,7 @@ import {
   Columns2,
 } from "lucide-react";
 import type { EmailSummary } from "@/lib/db";
+import { getMailboxPath } from "@/lib/mailbox-url";
 
 interface EmailListPaneProps {
   emails: EmailSummary[];
@@ -251,9 +252,16 @@ export function EmailListPane({
                       </span>
 
                       {isCatchAll && (
-                        <span className="px-1.5 py-0.2 rounded-xs bg-[#e8f0fe] text-[#0b57d0] text-[10px] font-mono shrink-0">
+                        <a
+                          href={getMailboxPath(email.mailbox)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Open ${email.mailbox} inbox in a new tab`}
+                          className="px-1.5 py-0.2 rounded-xs bg-[#e8f0fe] hover:bg-[#d3e3fd] text-[#0b57d0] hover:underline text-[10px] font-mono shrink-0 transition-colors"
+                        >
                           {email.mailbox}
-                        </span>
+                        </a>
                       )}
 
                       {email.subAddressTag && (

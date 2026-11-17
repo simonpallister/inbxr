@@ -1,8 +1,33 @@
+import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
 import { parse } from "node:url";
 import next from "next";
 import { SMTPServer } from "smtp-server";
 import { emptyTrashEmails } from "./src/lib/db.ts";
+
+// Pre-load .env with Node's native parser (or literal line parser) so '$' in passwords isn't stripped by @next/env dotenv-expand
+const localEnvPath = path.join(process.cwd(), ".env");
+if (fs.existsSync(localEnvPath)) {
+  const rawEnv = fs.readFileSync(localEnvPath, "utf8");
+  for (const line of rawEnv.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex <= 0) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    let val = trimmed.slice(eqIndex + 1).trim();
+    if (
+      (val.startsWith("'") && val.endsWith("'")) ||
+      (val.startsWith('"') && val.endsWith('"'))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (process.env[key] === undefined) {
+      process.env[key] = val;
+    }
+  }
+}
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";

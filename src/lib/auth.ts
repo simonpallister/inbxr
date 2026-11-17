@@ -300,8 +300,37 @@ export function requireAdminAuth(
   return { session };
 }
 
+function getConfiguredAdminPassword(): string {
+  try {
+    const localEnvPath = path.join(process.cwd(), ".env");
+    if (fs.existsSync(localEnvPath)) {
+      const rawEnv = fs.readFileSync(localEnvPath, "utf8");
+      for (const line of rawEnv.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIndex = trimmed.indexOf("=");
+        if (eqIndex <= 0) continue;
+        const key = trimmed.slice(0, eqIndex).trim();
+        if (key === "ADMIN_PASSWORD") {
+          let val = trimmed.slice(eqIndex + 1).trim();
+          if (
+            (val.startsWith("'") && val.endsWith("'")) ||
+            (val.startsWith('"') && val.endsWith('"'))
+          ) {
+            val = val.slice(1, -1);
+          }
+          if (val) return val;
+        }
+      }
+    }
+  } catch {
+    // ignore file read error
+  }
+  return (process.env.ADMIN_PASSWORD || "").trim();
+}
+
 export function verifyAdminPassword(providedPassword: string): boolean {
-  const configured = (process.env.ADMIN_PASSWORD || "").trim();
+  const configured = getConfiguredAdminPassword();
   if (!configured || !providedPassword) return false;
 
   const a = Buffer.from(
